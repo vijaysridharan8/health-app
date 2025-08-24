@@ -105,6 +105,7 @@ health-app/
 3. Run the application:
    ```powershell
    gradlew.bat bootRun
+   ./gradlew bootRun --debug-jvm -> debug
    ```
    ./gradlew bootRun
    The backend API will be available at `http://localhost:8080`

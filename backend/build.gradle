@@ -22,6 +22,7 @@ dependencies {
 	implementation 'org.apache.tika:tika-core:2.9.0'
 	implementation 'org.apache.tika:tika-parsers-standard-package:2.9.0'
 	implementation 'org.json:json:20230618'
+	implementation 'org.apache.pdfbox:pdfbox:2.0.30'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
