@@ -1,0 +1,60 @@
+.review-sign-layout {
+  display: flex;
+  min-height: 100vh;
+  background: #f5f6fa;
+  font-family: 'Foco', Arial, sans-serif, Arial, sans-serif;
+}
+.review-sign-content {
+  flex: 1;
+  padding: 32px 20px 32px 20px;
+  background: #f5f6fa;
+  max-width: 900px;
+  color: #111;
+  text-align: left;
+}
+.review-sign-content h1 {
+  color: #222;
+  margin-bottom: 32px;
+  text-align: left;
+}
+.review-section, .sign-section {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(60,72,88,0.08);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+.sign-btn {
+  background: #1c19d2;
+  color: #fff;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  font-family: 'Foco', Arial, sans-serif, Arial, sans-serif;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+.sign-btn:disabled {
+  background: #98b5c2;
+  cursor: not-allowed;
+}
+@media (max-width: 900px) {
+  .review-sign-layout {
+    flex-direction: column;
+  }
+  .review-sign-content {
+    max-width: 100vw;
+    padding: 20px 8px 20px 8px;
+  }
+}
+@media (max-width: 600px) {
+  .review-sign-content {
+    padding: 10px 2px 10px 2px;
+  }
+  .review-section, .sign-section {
+    padding: 10px;
+    margin-bottom: 12px;
+  }
+}

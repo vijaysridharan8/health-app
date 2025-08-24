@@ -1,0 +1,42 @@
+.identity-confirmation-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.identity-confirmation-modal {
+  background: #fff;
+  border-radius: 10px;
+  padding: 32px 28px 24px 28px;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.18);
+  min-width: 340px;
+  max-width: 90vw;
+  text-align: center;
+}
+.identity-confirmation-modal h2 {
+  margin-bottom: 16px;
+  color: #1976d2;
+}
+.identity-confirmation-modal p {
+  margin-bottom: 24px;
+  color: #333;
+}
+.identity-confirmation-close {
+  background: #1976d2;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 28px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.identity-confirmation-close:hover {
+  background: #1251a3;
+}
