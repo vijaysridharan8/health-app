@@ -135,6 +135,15 @@ Backend:
 - `gradlew.bat test`: Run tests
 - `gradlew.bat bootRun`: Run the application
 
+## Commit Code to Git
+git add .; git commit -m "Committing latest changes"
+git push
+
+git remote add origin https://github.com/Deloitte-US-Consulting-GPS/health-app.git
+git branch -M main
+git push -u origin main
+
+
 ## API Endpoints
 
 - `POST /api/upload`: Upload and process documents
