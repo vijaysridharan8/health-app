@@ -64,9 +64,9 @@ public class DocumentController {
         if (openaiApiKey == null || openaiApiKey.isEmpty()) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("OpenAI API key not set");
         }
-        String prompt = "Extract the following fields from this document and return as JSON with the following structure: " +
-                "{\\n  'First Name': string,\\n  'Last Name': string,\\n  'SSN': string,\\n  'Address Line 1': string,\\n  'Address Line 2': string,\\n  'City': string,\\n  'State': string,\\n  'Zip': string,\\n  'Income': string,\\n  'Deductions': string,\\n  'Spouse': { 'First Name': string, 'Last Name': string, 'SSN': string },\\n  'Dependents': [ { 'First Name': string, 'Last Name': string, 'SSN': string, 'Relationship': string, 'Age': string } ]\\n}" +
-                "\\nIf any field is missing, leave it blank. Document:\n" + extractedText;
+    String prompt = "Extract the following fields from this document and return as JSON with the following structure: " +
+        "{\\n  'First Name': string,\\n  'Last Name': string,\\n  'SSN': string,\\n  'Address Line 1': string,\\n  'Address Line 2': string,\\n  'City': string,\\n  'State': string,\\n  'Zip': string,\\n  'Income': string,\\n  'Deductions': string,\\n  'Phone Number': string,\\n  'Alternate Phone Number': string,\\n  'Spouse': { 'First Name': string, 'Last Name': string, 'SSN': string },\\n  'Dependents': [ { 'First Name': string, 'Last Name': string, 'SSN': string, 'Relationship': string, 'Age': string } ]\\n}" +
+        "\\nIf any field is missing, leave it blank. Document:\n" + extractedText;
 
         RestTemplate restTemplate = new RestTemplate();
         String apiUrl = "https://api.openai.com/v1/chat/completions";
