@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useHousehold } from './HouseholdContext';
 import Header from './Header';
 import { useNavigate } from 'react-router-dom';
 import LeftNavigation from './LeftNavigation';
@@ -12,6 +13,7 @@ export default function UploadDocumentScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploadedDocInfo, setUploadedDocInfo] = useState(null); // { name, filename, uploadedAt }
+  const { setHousehold } = useHousehold();
 
   const handleComputerUploadClick = () => {
     if (fileInputRef.current) {
@@ -35,7 +37,6 @@ export default function UploadDocumentScreen() {
         const text = await response.text();
         if (response.ok) {
           setUploadMessage('Upload successful');
-          // Parse backend response to extract name
           let docName = '';
           try {
             const json = JSON.parse(text);
@@ -43,12 +44,46 @@ export default function UploadDocumentScreen() {
             if (fields['First Name'] || fields['Last Name']) {
               docName = `${fields['First Name'] || ''} ${fields['Last Name'] || ''}`.trim();
             }
+            setUploadedDocInfo({
+              name: docName || 'Unknown',
+              filename: file.name,
+              uploadedAt: new Date(),
+              fields: fields
+            });
+            // Set household context
+            setHousehold({
+              primary: {
+                firstName: fields['First Name'] || '',
+                lastName: fields['Last Name'] || '',
+                dob: fields['Date of Birth'] || '',
+                gender: fields['Gender'] || '',
+                ssn: fields['SSN'] || '',
+                citizen: fields['US Citizen or Naturalized Citizen'] || '',
+                applyForCoverage: fields['Applying for Coverage'] === 'Yes'
+              },
+              spouse: fields.Spouse ? {
+                firstName: fields.Spouse['First Name'] || '',
+                lastName: fields.Spouse['Last Name'] || '',
+                dob: fields.Spouse['Date of Birth'] || '',
+                gender: fields.Spouse['Gender'] || '',
+                ssn: fields.Spouse['SSN'] || '',
+                citizen: fields.Spouse['US Citizen or Naturalized Citizen'] || '',
+                applyForCoverage: fields.Spouse['Applying for Coverage'] === 'Yes'
+              } : null,
+              dependents: Array.isArray(fields.Dependents) ? fields.Dependents.map(dep => ({
+                firstName: dep['First Name'] || '',
+                lastName: dep['Last Name'] || '',
+                dob: dep['Date of Birth'] || '',
+                gender: dep['Gender'] || '',
+                ssn: dep['SSN'] || '',
+                citizen: dep['US Citizen or Naturalized Citizen'] || '',
+                applyForCoverage: dep['Applying for Coverage'] === 'Yes'
+              })) : [],
+              address: fields['Address'] || fields['Address Line 1'] || '',
+              phone: fields['Phone'] || fields['Phone Number'] || '',
+              altPhone: fields['Alternate Phone Number'] || fields['Alt Phone'] || ''
+            });
           } catch (e) {}
-          setUploadedDocInfo({
-            name: docName || 'Unknown',
-            filename: file.name,
-            uploadedAt: new Date(),
-          });
         } else {
           setUploadMessage(`Upload failed: ${text}`);
         }
