@@ -27,13 +27,15 @@ export function HouseholdProvider({ children }) {
     address: '',
     phone: '',
     altPhone: ''
+  ,tax: [],
+  income: []
   });
 
   // Prevent fetch if data is already set (e.g., after uploadDoc)
   const [isPopulated, setIsPopulated] = useState(false);
-  // Wrap setHousehold to set the flag
+  // Wrap setHousehold to merge incoming data and set the flag
   const setHouseholdAndFlag = (data) => {
-    setHousehold(data);
+    setHousehold((prev) => ({ ...prev, ...data }));
     setIsPopulated(true);
   };
 

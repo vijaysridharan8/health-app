@@ -13,6 +13,14 @@ export default function ReviewAndSign() {
     household?.spouse,
     ...(household?.dependents || [])
   ].filter(Boolean);
+  const [taxOpen, setTaxOpen] = useState(true);
+  const [incomeOpen, setIncomeOpen] = useState(true);
+
+  // Assumed shapes (if backend provides):
+  // household.tax => [{ name, taxStatus, reconciledPremiumTaxCredits }]
+  // household.income => [{ ownerName, amount, frequency, companyType }]
+  const taxItems = household?.tax || [];
+  const incomeItems = household?.income || [];
   return (
     <div>
       <Header />
@@ -180,6 +188,123 @@ export default function ReviewAndSign() {
               )}
             </table>
           </div>
+          {/* Tax Information (collapsible) */}
+          <div style={{marginTop: 24}}>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#1976d2', color: '#fff', borderRadius: 8, padding: '12px 18px', fontWeight: 700, fontSize: '1.13rem'}}>
+              <span>Tax Information</span>
+              <span
+                onClick={() => setTaxOpen((open) => !open)}
+                style={{cursor: 'pointer', color: '#fff', fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center'}}
+                title={taxOpen ? 'Collapse' : 'Expand'}
+              >
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="2.5" y="2.5" width="17" height="17" rx="3" fill="#1976d2" stroke="#fff" strokeWidth="1.5"/>
+                  <path d="M7 10l4 4 4-4" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </span>
+            </div>
+            {taxOpen && (
+              <div style={{border: '1.5px solid #e3e8f0', borderTop: 'none', borderRadius: '0 0 8px 8px', background: '#fff', padding: 0}}>
+                <table style={{width: '100%', borderCollapse: 'collapse'}}>
+                  <tbody>
+                    {/* Build display entries for primary and spouse only */}
+                    {(() => {
+                      const entries = [];
+                      const primaryName = household?.primary ? `${household.primary.firstName || ''} ${household.primary.lastName || ''}`.trim() : '';
+                      const spouseName = household?.spouse ? `${household.spouse.firstName || ''} ${household.spouse.lastName || ''}`.trim() : '';
+                      const findMatch = (name) => taxItems.find(t => (t.name || '').toString().trim().toLowerCase() === name.toLowerCase());
+                      if (primaryName) {
+                        const match = findMatch(primaryName);
+                        entries.push({ name: primaryName, taxStatus: match ? match.taxStatus : (taxItems[0] ? taxItems[0].taxStatus : ''), reconciledPremiumTaxCredits: match ? !!match.reconciledPremiumTaxCredits : !!(taxItems[0] && taxItems[0].reconciledPremiumTaxCredits) });
+                      }
+                      if (spouseName) {
+                        const match = findMatch(spouseName);
+                        entries.push({ name: spouseName, taxStatus: match ? match.taxStatus : (taxItems[0] ? taxItems[0].taxStatus : ''), reconciledPremiumTaxCredits: match ? !!match.reconciledPremiumTaxCredits : !!(taxItems[0] && taxItems[0].reconciledPremiumTaxCredits) });
+                      }
+                      if (entries.length === 0) {
+                        return (<tr><td style={{padding: 16, color: '#666'}}>No tax information available.</td></tr>);
+                      }
+                      return entries.map((t, i) => (
+                        <React.Fragment key={i}>
+                          <tr>
+                            <td colSpan="6" style={{fontWeight: 700, padding: '12px 16px', background: '#f7f9fb'}}>{t.name || 'Household Member'}</td>
+                          </tr>
+                          <tr style={{background: '#fff'}}>
+                            <th style={{padding: '10px 16px', borderBottom: '1px solid #eee', textAlign: 'left', width: '33%'}}>Tax Status</th>
+                            <td style={{padding: '10px 16px', borderBottom: '1px solid #eee'}}>{t.taxStatus || ''}</td>
+                            <th style={{padding: '10px 16px', borderBottom: '1px solid #eee', textAlign: 'left', width: '33%'}}>Reconciled premium tax credits</th>
+                            <td style={{padding: '10px 16px', borderBottom: '1px solid #eee'}}>{t.reconciledPremiumTaxCredits ? 'Yes' : 'No'}</td>
+                          </tr>
+                        </React.Fragment>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Income Information (collapsible) */}
+          <div style={{marginTop: 24}}>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#1976d2', color: '#fff', borderRadius: 8, padding: '12px 18px', fontWeight: 700, fontSize: '1.13rem'}}>
+              <span>Income Information</span>
+              <span
+                onClick={() => setIncomeOpen((open) => !open)}
+                style={{cursor: 'pointer', color: '#fff', fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center'}}
+                title={incomeOpen ? 'Collapse' : 'Expand'}
+              >
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="2.5" y="2.5" width="17" height="17" rx="3" fill="#1976d2" stroke="#fff" strokeWidth="1.5"/>
+                  <path d="M7 10l4 4 4-4" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </span>
+            </div>
+            {incomeOpen && (
+              <div style={{border: '1.5px solid #e3e8f0', borderTop: 'none', borderRadius: '0 0 8px 8px', background: '#fff', padding: 0}}>
+                <table style={{width: '100%', borderCollapse: 'collapse'}}>
+                  <tbody>
+                    {(() => {
+                      const entries = [];
+                      const primaryName = household?.primary ? `${household.primary.firstName || ''} ${household.primary.lastName || ''}`.trim() : '';
+                      const spouseName = household?.spouse ? `${household.spouse.firstName || ''} ${household.spouse.lastName || ''}`.trim() : '';
+                      const findMatch = (name) => incomeItems.find(i => ((i.ownerName || i.name) || '').toString().trim().toLowerCase() === name.toLowerCase());
+                      if (primaryName) {
+                        const match = findMatch(primaryName);
+                        entries.push({ ownerName: primaryName, amount: match ? match.amount : (incomeItems[0] ? incomeItems[0].amount : ''), frequency: match ? match.frequency : (incomeItems[0] ? incomeItems[0].frequency : ''), companyType: match ? match.companyType : (incomeItems[0] ? incomeItems[0].companyType : '') });
+                      }
+                      if (spouseName) {
+                        const match = findMatch(spouseName);
+                        entries.push({ ownerName: spouseName, amount: match ? match.amount : (incomeItems[0] ? incomeItems[0].amount : ''), frequency: match ? match.frequency : (incomeItems[0] ? incomeItems[0].frequency : ''), companyType: match ? match.companyType : (incomeItems[0] ? incomeItems[0].companyType : '') });
+                      }
+                      if (entries.length === 0) {
+                        return (<tr><td style={{padding: 16, color: '#666'}}>No income information available.</td></tr>);
+                      }
+                      return entries.map((inc, idx) => (
+                        <React.Fragment key={idx}>
+                          <tr>
+                            <td colSpan="6" style={{fontWeight: 700, padding: '12px 16px', background: '#f7f9fb'}}>{inc.ownerName || 'Income'}</td>
+                          </tr>
+                          <tr style={{background: '#fff'}}>
+                            <th style={{padding: '10px 16px', borderBottom: '1px solid #eee', textAlign: 'left', width: '33%'}}>Amount earned</th>
+                            <td style={{padding: '10px 16px', borderBottom: '1px solid #eee'}}>{inc.amount || ''}</td>
+                            <th style={{padding: '10px 16px', borderBottom: '1px solid #eee', textAlign: 'left', width: '33%'}}>Frequency</th>
+                            <td style={{padding: '10px 16px', borderBottom: '1px solid #eee'}}>{inc.frequency || ''}</td>
+                          </tr>
+                          {inc.companyType && (
+                            <tr style={{background: '#fff'}}>
+                              <th style={{padding: '10px 16px', borderBottom: '1px solid #eee', textAlign: 'left'}}>Company Type</th>
+                              <td style={{padding: '10px 16px', borderBottom: '1px solid #eee'}} colSpan={3}>{inc.companyType}</td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           {/* Additional review and sign content continues here... */}
         </main>
       </div>

@@ -50,6 +50,29 @@ export default function UploadDocumentScreen() {
               uploadedAt: new Date(),
               fields: fields
             });
+            // Build tax and income arrays (if provided by LLM)
+            const taxFromLLM = fields.tax || fields.Tax || [];
+            const incomeFromLLM = fields.income || fields.Income || [];
+
+            // Determine filing status from common keys
+            const filingStatusRaw = (fields['Filing Status'] || fields['FilingStatus'] || fields['Filing_Status'] || '').toString().toLowerCase();
+            const isMarriedFilingJointly = filingStatusRaw.includes('married') && filingStatusRaw.includes('joint');
+
+            // Ensure tax entries for primary and spouse when 'Married filing jointly' is detected
+            const taxItems = Array.isArray(taxFromLLM) ? [...taxFromLLM] : [];
+            if (isMarriedFilingJointly) {
+              const primaryName = `${fields['First Name'] || ''} ${fields['Last Name'] || ''}`.trim();
+              const spouseName = fields.Spouse ? `${fields.Spouse['First Name'] || ''} ${fields.Spouse['Last Name'] || ''}`.trim() : '';
+              // Helper to check existing by name
+              const existsFor = (name) => taxItems.some(t => (t.name || '').toString().trim() === name);
+              if (primaryName && !existsFor(primaryName)) {
+                taxItems.unshift({ name: primaryName, taxStatus: 'Married Filing Jointly', reconciledPremiumTaxCredits: false });
+              }
+              if (spouseName && !existsFor(spouseName)) {
+                taxItems.unshift({ name: spouseName, taxStatus: 'Married Filing Jointly', reconciledPremiumTaxCredits: false });
+              }
+            }
+
             // Set household context
             setHousehold({
               primary: {
@@ -81,7 +104,9 @@ export default function UploadDocumentScreen() {
               })) : [],
               address: fields['Address'] || fields['Address Line 1'] || '',
               phone: fields['Phone'] || fields['Phone Number'] || '',
-              altPhone: fields['Alternate Phone Number'] || fields['Alt Phone'] || ''
+              altPhone: fields['Alternate Phone Number'] || fields['Alt Phone'] || '',
+              tax: taxItems,
+              income: Array.isArray(incomeFromLLM) ? incomeFromLLM : []
             });
           } catch (e) {}
         } else {

@@ -6,11 +6,11 @@ import java.io.InputStream;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,13 +60,33 @@ public class DocumentController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to extract text from document");
         }
 
+        // Detect PDF form code for filing status (e.g. c1_3: 1/3/4) and build a hint for the LLM
+        String filingHint = "";
+        try {
+            Pattern p = Pattern.compile("c1_3\\s*:\\s*(\\d)", Pattern.CASE_INSENSITIVE);
+            Matcher m = p.matcher(extractedText);
+            if (m.find()) {
+                String code = m.group(1);
+                if ("1".equals(code)) {
+                    filingHint = "Note: The document contains 'c1_3: 1' — treat filing status as Single and set tax status for primary and spouse to 'Single'.";
+                } else if ("3".equals(code)) {
+                    filingHint = "Note: The document contains 'c1_3: 3' — treat filing status as Married Filing Jointly and set tax status for primary and spouse to 'Married Filing Jointly'.";
+                } else if ("4".equals(code)) {
+                    filingHint = "Note: The document contains 'c1_3: 4' — treat filing status as Married Filing Separately and set tax status for primary and spouse to 'Married Filing Separately'.";
+                }
+            }
+        } catch (Exception ex) {
+            // non-fatal — leave filingHint empty
+        }
         // Call OpenAI ChatGPT to extract structured data
         if (openaiApiKey == null || openaiApiKey.isEmpty()) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("OpenAI API key not set");
         }
     String prompt = "Extract the following fields from this document and return as JSON with the following structure: " +
-        "{\\n  'First Name': string,\\n  'Last Name': string,\\n  'SSN': string,\\n  'Address Line 1': string,\\n  'Address Line 2': string,\\n  'City': string,\\n  'State': string,\\n  'Zip': string,\\n  'Income': string,\\n  'Deductions': string,\\n  'Phone Number': string,\\n  'Alternate Phone Number': string,\\n  'Spouse': { 'First Name': string, 'Last Name': string, 'SSN': string },\\n  'Dependents': [ { 'First Name': string, 'Last Name': string, 'SSN': string, 'Relationship': string, 'Age': string } ]\\n}" +
-        "\\nIf any field is missing, leave it blank. Document:\n" + extractedText;
+    "{\\n  'First Name': string,\\n  'Last Name': string,\\n  'SSN': string,\\n  'Address Line 1': string,\\n  'Address Line 2': string,\\n  'City': string,\\n  'State': string,\\n  'Zip': string,\\n  'Phone Number': string,\\n  'Alternate Phone Number': string,\\n  'Spouse': { 'First Name': string, 'Last Name': string, 'SSN': string },\\n  'Dependents': [ { 'First Name': string, 'Last Name': string, 'SSN': string, 'Relationship': string, 'Age': string } ],\\n  'tax': [ { 'name': string, 'taxStatus': string, 'reconciledPremiumTaxCredits': boolean } ],\\n  'income': [ { 'ownerName': string, 'amount': string, 'frequency': string, 'companyType': string } ]\\n}" +
+    "\\nIf any field is missing, leave it blank. Return strictly valid JSON using the exact keys shown (use empty strings or false for missing values)." +
+    (filingHint.isEmpty() ? "" : "\\n" + filingHint) +
+    "\\nDocument:\n" + extractedText;
 
         RestTemplate restTemplate = new RestTemplate();
         String apiUrl = "https://api.openai.com/v1/chat/completions";
@@ -125,16 +145,37 @@ public class DocumentController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to extract text from document");
         }
 
-        // Store extracted text for chat use
+    // Store extracted text for chat use
         if (sessionId == null || sessionId.isEmpty()) {
             sessionId = UUID.randomUUID().toString();
         }
         sessionDocumentText.put(sessionId, extractedText);
 
+        // Detect c1_3 in this older /upload flow as well and add filing hint
+        String filingHint = "";
+        try {
+            Pattern p = Pattern.compile("c1_3\\s*:\\s*(\\d)", Pattern.CASE_INSENSITIVE);
+            Matcher m = p.matcher(extractedText);
+            if (m.find()) {
+                String code = m.group(1);
+                if ("1".equals(code)) {
+                    filingHint = "Note: The document contains 'c1_3: 1' — treat filing status as Single and set tax status for primary and spouse to 'Single'.";
+                } else if ("3".equals(code)) {
+                    filingHint = "Note: The document contains 'c1_3: 3' — treat filing status as Married Filing Jointly and set tax status for primary and spouse to 'Married Filing Jointly'.";
+                } else if ("4".equals(code)) {
+                    filingHint = "Note: The document contains 'c1_3: 4' — treat filing status as Married Filing Separately and set tax status for primary and spouse to 'Married Filing Separately'.";
+                }
+            }
+        } catch (Exception ex) {
+            // ignore
+        }
+
         // Prepare prompt for LLM
         String prompt = "Extract the following fields from this document and return as JSON with the following structure: " +
-                "{\n  'First Name': string,\n  'Last Name': string,\n  'SSN': string,\n  'Address Line 1': string,\n  'Address Line 2': string,\n  'City': string,\n  'State': string,\n  'Zip': string,\n  'Income': string,\n  'Deductions': string,\n  'Spouse': { 'First Name': string, 'Last Name': string, 'SSN': string },\n  'Dependents': [ { 'First Name': string, 'Last Name': string, 'SSN': string, 'Relationship': string, 'Age': string } ]\n}" +
-                "\nIf any field is missing, leave it blank. Document:\n" + extractedText;
+                "{\n  'First Name': string,\n  'Last Name': string,\n  'SSN': string,\n  'Address Line 1': string,\n  'Address Line 2': string,\n  'City': string,\n  'State': string,\n  'Zip': string,\n  'Spouse': { 'First Name': string, 'Last Name': string, 'SSN': string },\n  'Dependents': [ { 'First Name': string, 'Last Name': string, 'SSN': string, 'Relationship': string, 'Age': string } ],\n  'Phone Number': string,\n  'Alternate Phone Number': string,\n  'tax': [ { 'name': string, 'taxStatus': string, 'reconciledPremiumTaxCredits': boolean } ],\n  'income': [ { 'ownerName': string, 'amount': string, 'frequency': string, 'companyType': string } ]\n}" +
+                "\nIf any field is missing, leave it blank. Return strictly valid JSON using the exact keys shown (use empty strings or false for missing values)." +
+                (filingHint.isEmpty() ? "" : "\n" + filingHint) +
+                "\nDocument:\n" + extractedText;
 
         if (openaiApiKey == null || openaiApiKey.isEmpty()) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("OpenAI API key not set");
