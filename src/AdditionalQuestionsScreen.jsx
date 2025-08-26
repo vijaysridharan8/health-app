@@ -122,9 +122,8 @@ function AdditionalQuestionsScreen() {
   const [hispanicOrigin, setHispanicOrigin] = useState(""); // James Smith
   const [race, setRace] = useState(""); // James Smith
   const [applyToAll, setApplyToAll] = useState(false);
-  const [milanLivingArrangement, setMilanLivingArrangement] = useState("At Home");
-  const [milanHispanicOrigin, setMilanHispanicOrigin] = useState("");
-  const [milanRace, setMilanRace] = useState("");
+  // per-person details for spouse and dependents (keyed by 'spouse' or dependent id)
+  const [personDetails, setPersonDetails] = useState({});
   const [lostCoveragePeople, setLostCoveragePeople] = useState([]); // stores ids: 'primary' | 'spouse' | 'dep-<idx>' | 'none'
   const [lostCoverageDetails, setLostCoverageDetails] = useState({}); // { [id]: { date: 'YYYY-MM-DD', reason: 'yes'|'no' } }
   const [highlightNavBlue, setHighlightNavBlue] = useState(true);
@@ -172,24 +171,116 @@ function AdditionalQuestionsScreen() {
   const handleNativeTribeChange = (e) => setNativeTribe(e.target.value);
   const handleLivingArrangementChange = (e) => {
     setLivingArrangement(e.target.value);
-    if (applyToAll) setMilanLivingArrangement(e.target.value);
+    if (applyToAll) {
+      // apply to spouse and dependents
+      setPersonDetails((prev) => {
+        const next = { ...prev };
+        if (next['spouse']) next['spouse'] = { ...next['spouse'], livingArrangement: e.target.value };
+        (household?.dependents || []).forEach((d, idx) => {
+          const id = d.id || `dep-${idx}`;
+          next[id] = { ...(next[id] || {}), livingArrangement: e.target.value };
+        });
+        return next;
+      });
+    }
   };
   const handleHispanicOriginChange = (e) => {
     setHispanicOrigin(e.target.value);
-    if (applyToAll) setMilanHispanicOrigin(e.target.value);
+    if (applyToAll) {
+      setPersonDetails((prev) => {
+        const next = { ...prev };
+        if (next['spouse']) next['spouse'] = { ...next['spouse'], hispanicOrigin: e.target.value };
+        (household?.dependents || []).forEach((d, idx) => {
+          const id = d.id || `dep-${idx}`;
+          next[id] = { ...(next[id] || {}), hispanicOrigin: e.target.value };
+        });
+        return next;
+      });
+    }
   };
   const handleRaceChange = (e) => {
     setRace(e.target.value);
-    if (applyToAll) setMilanRace(e.target.value);
+    if (applyToAll) {
+      setPersonDetails((prev) => {
+        const next = { ...prev };
+        if (next['spouse']) next['spouse'] = { ...next['spouse'], race: e.target.value };
+        (household?.dependents || []).forEach((d, idx) => {
+          const id = d.id || `dep-${idx}`;
+          next[id] = { ...(next[id] || {}), race: e.target.value };
+        });
+        return next;
+      });
+    }
   };
   const handleApplyToAllChange = (e) => {
     const checked = e.target.checked;
     setApplyToAll(checked);
     if (checked) {
-      setMilanLivingArrangement(livingArrangement);
-      setMilanHispanicOrigin(hispanicOrigin);
-      setMilanRace(race);
+      setPersonDetails((prev) => {
+        const next = { ...prev };
+        next['spouse'] = { ...(next['spouse'] || {}), livingArrangement, hispanicOrigin, race };
+        (household?.dependents || []).forEach((d, idx) => {
+          const id = d.id || `dep-${idx}`;
+          next[id] = { ...(next[id] || {}), livingArrangement, hispanicOrigin, race };
+        });
+        return next;
+      });
     }
+  };
+
+  // Initialize personDetails for spouse and dependents when household loads
+  useEffect(() => {
+    if (!household) return;
+    // Prefer persisted personDetails on household, otherwise seed defaults
+    if (household.personDetails && typeof household.personDetails === 'object' && Object.keys(household.personDetails).length > 0) {
+      setPersonDetails(household.personDetails);
+      return;
+    }
+    setPersonDetails((prev) => {
+      const next = { ...(prev || {}) };
+      // seed primary details from local controls
+      next['primary'] = next['primary'] || { livingArrangement: livingArrangement || 'At Home', hispanicOrigin: hispanicOrigin || '', hispanic: hispanicOrigin || '', race: race || '' };
+      if (household.spouse) {
+        next['spouse'] = next['spouse'] || { livingArrangement: 'At Home', hispanicOrigin: '', race: '' };
+      }
+      (household.dependents || []).forEach((d, idx) => {
+        const id = d.id || `dep-${idx}`;
+        next[id] = next[id] || { livingArrangement: 'At Home', hispanicOrigin: '', race: '' };
+      });
+      // persist seeded personDetails back to household so other components see it
+      try {
+        if (setHousehold) setHousehold({ personDetails: next });
+      } catch (err) {
+        console.error('Error persisting initial personDetails to household:', err);
+      }
+      return next;
+    });
+  }, [household]);
+
+  // Persist primary details when the top-level controls change
+  useEffect(() => {
+    setPersonDetails((prev) => {
+      const next = { ...(prev || {}) };
+      next['primary'] = { ...(next['primary'] || {}), livingArrangement: livingArrangement || 'At Home', hispanicOrigin: hispanicOrigin || '', hispanic: hispanicOrigin || '', race: race || '' };
+      try {
+        if (setHousehold) setHousehold({ personDetails: next });
+      } catch (err) {
+        console.error('Error persisting primary personDetails to household:', err);
+      }
+      return next;
+    });
+  }, [livingArrangement, hispanicOrigin, race]);
+
+  const handlePersonFieldChange = (id, field, value) => {
+    setPersonDetails((prev) => {
+      const next = { ...prev, [id]: { ...(prev[id] || {}), [field]: value } };
+      try {
+        if (setHousehold) setHousehold({ personDetails: next });
+      } catch (err) {
+        console.error('Error persisting personDetails to household:', err);
+      }
+      return next;
+    });
   };
   const handleLostCoveragePeopleChange = (e) => {
     const value = e.target.value;
@@ -751,85 +842,158 @@ function AdditionalQuestionsScreen() {
         </div>
         </section>
 
-         <section style={{marginTop: 32}}>
-           <div className="upload-question">
-            <h2 style={{fontSize: '1.0rem', marginBottom: 8, color: '#222'}}>Milan Smith</h2>
-          <hr style={{border: 'none', borderTop: '1.5px solid #e3e8f0', margin: '12px 0 24px 0'}} />
-          
-            <h2 style={{marginBottom: 8}}>
-              What is Milan Smith's current Living Arrangement
-              <span className="red-star">*</span>
-            </h2>
-            <div style={{maxWidth: 400}}>
-              <select
-                className="aq-multiselect-control"
-                name="milanLivingArrangement"
-                value={milanLivingArrangement}
-                onChange={e => setMilanLivingArrangement(e.target.value)}
-                required
-                style={{width: '100%', minHeight: 40, fontSize: '1rem'}}
-                disabled={applyToAll}
-              >
-                <option value="" disabled>Select your living arrangement</option>
-                {livingArrangementOptions.map((option) => (
-                  <option key={option.trim()} value={option.trim()}>{option.trim()}</option>
-                ))}
-              </select>
+        <section style={{marginTop: 32}}>
+          {/* Dynamic spouse and dependents details */}
+          {(household?.spouse) && (
+            <div className="upload-question">
+              <h2 style={{fontSize: '1.0rem', marginBottom: 8, color: '#222'}}>{`${household.spouse.firstName || 'Spouse'} ${household.spouse.lastName || ''}`.trim()}</h2>
+              <hr style={{border: 'none', borderTop: '1.5px solid #e3e8f0', margin: '12px 0 24px 0'}} />
+              <h2 style={{marginBottom: 8}}>
+                What is their current Living Arrangement
+                <span className="red-star">*</span>
+              </h2>
+              <div style={{maxWidth: 400}}>
+                <select
+                  className="aq-multiselect-control"
+                  name="spouseLivingArrangement"
+                  value={personDetails['spouse']?.livingArrangement || 'At Home'}
+                  onChange={e => handlePersonFieldChange('spouse', 'livingArrangement', e.target.value)}
+                  required
+                  style={{width: '100%', minHeight: 40, fontSize: '1rem'}}
+                  disabled={applyToAll}
+                >
+                  <option value="" disabled>Select their living arrangement</option>
+                  {livingArrangementOptions.map((option) => (
+                    <option key={option.trim()} value={option.trim()}>{option.trim()}</option>
+                  ))}
+                </select>
+              </div>
+              <br />
+              <h2 style={{marginBottom: 8}}>Is this person of Hispanic, Latino, or Spanish origin?</h2>
+              <div className="radio-group" style={{display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center'}}>
+                <label className="radio-box">
+                  <input
+                    type="radio"
+                    name="spouseHispanicOrigin"
+                    value="yes"
+                    checked={personDetails['spouse']?.hispanicOrigin === 'yes'}
+                    onChange={e => handlePersonFieldChange('spouse', 'hispanicOrigin', 'yes')}
+                    required
+                    disabled={applyToAll}
+                    style={{marginRight: 6}}
+                  />
+                  Yes
+                </label>
+                <label className="radio-box">
+                  <input
+                    type="radio"
+                    name="spouseHispanicOrigin"
+                    value="no"
+                    checked={personDetails['spouse']?.hispanicOrigin === 'no'}
+                    onChange={e => handlePersonFieldChange('spouse', 'hispanicOrigin', 'no')}
+                    required
+                    disabled={applyToAll}
+                    style={{marginRight: 6}}
+                  />
+                  No
+                </label>
+              </div>
+
+              <h2 style={{marginBottom: 8}}>What is this person's race?</h2>
+              <div style={{maxWidth: 400}}>
+                <select
+                  className="aq-multiselect-control"
+                  name="spouseRace"
+                  value={personDetails['spouse']?.race || ''}
+                  onChange={e => handlePersonFieldChange('spouse', 'race', e.target.value)}
+                  required
+                  style={{width: '100%', minHeight: 40, fontSize: '1rem'}}
+                  disabled={applyToAll}
+                >
+                  <option value="" disabled>Select their race</option>
+                  {raceOptions.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <br></br>
-           <h2 style={{marginBottom: 8}}>
-            Is Milan Smith of Hispanic, Latino, or Spanish origin?
-          </h2>
-          <div className="radio-group" style={{display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center'}}>
-            <label className="radio-box">
-              <input
-                type="radio"
-                name="milanHispanicOrigin"
-                value="yes"
-                checked={milanHispanicOrigin === 'yes'}
-                onChange={e => setMilanHispanicOrigin(e.target.value)}
-                required
-                disabled={applyToAll}
-                style={{marginRight: 6}}
-              />
-              Yes
-            </label>
-            <label className="radio-box">
-              <input
-                type="radio"
-                name="milanHispanicOrigin"
-                value="no"
-                checked={milanHispanicOrigin === 'no'}
-                onChange={e => setMilanHispanicOrigin(e.target.value)}
-                required
-                disabled={applyToAll}
-                style={{marginRight: 6}}
-              />
-              No
-            </label>
-          </div>
+          )}
 
-          <h2 style={{marginBottom: 8}}>
-            What is Milan Smith's race?
-          </h2>
-
-          <div style={{maxWidth: 400}}>
-            <select
-              className="aq-multiselect-control"
-              name="milanRace"
-              value={milanRace}
-              onChange={e => setMilanRace(e.target.value)}
-              required
-              style={{width: '100%', minHeight: 40, fontSize: '1rem'}}
-              disabled={applyToAll}
-            >
-              <option value="" disabled>Select your race</option>
-              {raceOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+          {/* Dependents */}
+          {(household?.dependents || []).map((dep, idx) => {
+            const id = dep.id || `dep-${idx}`;
+            const name = `${dep.firstName || 'Dependent'} ${dep.lastName || ''}`.trim();
+            return (
+              <div key={`person-${id}`} className="upload-question">
+                <h2 style={{fontSize: '1.0rem', marginBottom: 8, color: '#222'}}>{name}</h2>
+                <hr style={{border: 'none', borderTop: '1.5px solid #e3e8f0', margin: '12px 0 24px 0'}} />
+                <h2 style={{marginBottom: 8}}>What is their current Living Arrangement<span className="red-star">*</span></h2>
+                <div style={{maxWidth: 400}}>
+                  <select
+                    className="aq-multiselect-control"
+                    name={`${id}-livingArrangement`}
+                    value={personDetails[id]?.livingArrangement || 'At Home'}
+                    onChange={e => handlePersonFieldChange(id, 'livingArrangement', e.target.value)}
+                    required
+                    style={{width: '100%', minHeight: 40, fontSize: '1rem'}}
+                    disabled={applyToAll}
+                  >
+                    <option value="" disabled>Select their living arrangement</option>
+                    {livingArrangementOptions.map((option) => (
+                      <option key={option.trim()} value={option.trim()}>{option.trim()}</option>
+                    ))}
+                  </select>
+                </div>
+                <br />
+                <h2 style={{marginBottom: 8}}>Is this person of Hispanic, Latino, or Spanish origin?</h2>
+                <div className="radio-group" style={{display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center'}}>
+                  <label className="radio-box">
+                    <input
+                      type="radio"
+                      name={`${id}-hispanicOrigin`}
+                      value="yes"
+                      checked={personDetails[id]?.hispanicOrigin === 'yes'}
+                      onChange={e => handlePersonFieldChange(id, 'hispanicOrigin', 'yes')}
+                      required
+                      disabled={applyToAll}
+                      style={{marginRight: 6}}
+                    />
+                    Yes
+                  </label>
+                  <label className="radio-box">
+                    <input
+                      type="radio"
+                      name={`${id}-hispanicOrigin`}
+                      value="no"
+                      checked={personDetails[id]?.hispanicOrigin === 'no'}
+                      onChange={e => handlePersonFieldChange(id, 'hispanicOrigin', 'no')}
+                      required
+                      disabled={applyToAll}
+                      style={{marginRight: 6}}
+                    />
+                    No
+                  </label>
+                </div>
+                <h2 style={{marginBottom: 8}}>What is this person's race?</h2>
+                <div style={{maxWidth: 400}}>
+                  <select
+                    className="aq-multiselect-control"
+                    name={`${id}-race`}
+                    value={personDetails[id]?.race || ''}
+                    onChange={e => handlePersonFieldChange(id, 'race', e.target.value)}
+                    required
+                    style={{width: '100%', minHeight: 40, fontSize: '1rem'}}
+                    disabled={applyToAll}
+                  >
+                    <option value="" disabled>Select their race</option>
+                    {raceOptions.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            );
+          })}
         </section>
 
         <div className="next-btn-row">

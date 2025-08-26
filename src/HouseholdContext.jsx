@@ -30,6 +30,15 @@ export function HouseholdProvider({ children }) {
   ,tax: [],
   income: []
   ,specialEnrollment: { lostCoverage: [], lostCoverageDetails: {} }
+  ,personDetails: {}
+  // Additional question flags (default to false so consumers can read them safely)
+  ,pregnant: false
+  ,disability: false
+  ,incarcerated: false
+  ,immigrant: false
+  ,nativeTribe: false
+  // Backwards-compatible container some components read from
+  ,additionalQuestions: { pregnant: false, disability: false, incarcerated: false, immigrant: false, nativeTribe: false }
   });
 
   // Helper to generate a stable-ish id for dependents when SSN is not available
@@ -50,6 +59,17 @@ export function HouseholdProvider({ children }) {
     const processed = { ...data };
     if (Array.isArray(data.dependents)) {
       processed.dependents = data.dependents.map((dep) => ({ id: dep.id || generateId(), ...dep }));
+    }
+
+    // Backwards-compatible: if an additionalQuestions object is provided, copy its booleans
+    // to the top-level keys so components can read either location.
+    if (processed.additionalQuestions && typeof processed.additionalQuestions === 'object') {
+      const aq = processed.additionalQuestions;
+      processed.pregnant = aq.pregnant ?? processed.pregnant;
+      processed.disability = aq.disability ?? processed.disability;
+      processed.incarcerated = aq.incarcerated ?? processed.incarcerated;
+      processed.immigrant = aq.immigrant ?? processed.immigrant;
+      processed.nativeTribe = aq.nativeTribe ?? processed.nativeTribe;
     }
 
     setHousehold((prev) => ({ ...prev, ...processed }));
