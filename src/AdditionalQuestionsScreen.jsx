@@ -3,6 +3,7 @@ import LeftNavigation from './LeftNavigation';
 import IdentityConfirmation from './IdentityConfirmation';
 import './AdditionalQuestionsScreen.css';
 import Header from './Header';
+import { useHousehold } from './HouseholdContext';
 
 const livingArrangementOptions = [
   "Acute Care Facility",
@@ -57,6 +58,9 @@ const specialEnrollmentOptions = [
 
 function AdditionalQuestionsScreen() {
   const [showIdentityPopup, setShowIdentityPopup] = useState(false);
+  const { household } = useHousehold();
+  const primaryName = `${household?.primary?.firstName || 'Primary'} ${household?.primary?.lastName || ''}`.trim();
+  const spouseName = `${household?.spouse?.firstName || 'Spouse'} ${household?.spouse?.lastName || ''}`.trim();
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -75,7 +79,7 @@ function AdditionalQuestionsScreen() {
   const [milanLivingArrangement, setMilanLivingArrangement] = useState("At Home");
   const [milanHispanicOrigin, setMilanHispanicOrigin] = useState("");
   const [milanRace, setMilanRace] = useState("");
-  const [lostCoveragePeople, setLostCoveragePeople] = useState([]);
+  const [lostCoveragePeople, setLostCoveragePeople] = useState([]); // stores ids: 'primary' | 'spouse' | 'dep-<idx>' | 'none'
   const [highlightNavBlue, setHighlightNavBlue] = useState(true);
   const [showFifthDark, setShowFifthDark] = useState(true);
   const dropdownRef = useRef(null);
@@ -142,12 +146,24 @@ function AdditionalQuestionsScreen() {
   };
   const handleLostCoveragePeopleChange = (e) => {
     const value = e.target.value;
-    setLostCoveragePeople((prev) =>
-      e.target.checked
-        ? [...prev, value]
-        : prev.filter((v) => v !== value)
-    );
+    const checked = e.target.checked;
+    setLostCoveragePeople((prev) => {
+      // 'none' is exclusive
+      if (value === 'none') {
+        return checked ? ['none'] : prev.filter((v) => v !== 'none');
+      }
+      // selecting someone should remove 'none' if present
+      let next = prev.filter((v) => v !== 'none');
+      if (checked) {
+        if (!next.includes(value)) next = [...next, value];
+      } else {
+        next = next.filter((v) => v !== value);
+      }
+      return next;
+    });
   };
+
+  
 
   // On initial load, show 5th section in dark grey, then revert to normal after mount
 
@@ -215,39 +231,84 @@ function AdditionalQuestionsScreen() {
                     <input
                       type="checkbox"
                       name="lostCoveragePeople"
-                      value="James Smith"
-                      checked={lostCoveragePeople.includes("James Smith")}
+                      value="primary"
+                      checked={lostCoveragePeople.includes('primary')}
                       onChange={handleLostCoveragePeopleChange}
-                    /> James Smith
+                    /> {primaryName}
                   </label>
                   <label>
                     <input
                       type="checkbox"
                       name="lostCoveragePeople"
-                      value="Milan Smith"
-                      checked={lostCoveragePeople.includes("Milan Smith")}
+                      value="spouse"
+                      checked={lostCoveragePeople.includes('spouse')}
                       onChange={handleLostCoveragePeopleChange}
-                    /> Milan Smith
+                    /> {spouseName}
                   </label>
+                  {/* Render dependents dynamically */}
+                  { (household?.dependents || []).map((dep, idx) => {
+                    const depName = `${dep.firstName || 'Dependent'} ${dep.lastName || ''}`.trim();
+                    const id = `dep-${idx}`;
+                    return (
+                      <label key={`dep-${idx}`}>
+                        <input
+                          type="checkbox"
+                          name="lostCoveragePeople"
+                          value={id}
+                          checked={lostCoveragePeople.includes(id)}
+                          onChange={handleLostCoveragePeopleChange}
+                        /> {depName}
+                      </label>
+                    );
+                  })}
                   <label>
                     <input
                       type="checkbox"
                       name="lostCoveragePeople"
-                      value="None of the people"
-                      checked={lostCoveragePeople.includes("None of the people")}
+                      value="none"
+                      checked={lostCoveragePeople.includes('none')}
                       onChange={handleLostCoveragePeopleChange}
                     /> None of the people
                   </label>
                 </div>
               </div>
-              {lostCoveragePeople.includes("James Smith") && (
+              {lostCoveragePeople.includes('primary') && (
                 <>
                   <div style={{marginTop: 24, display: 'flex', alignItems: 'center', gap: 12}}>
-                    <label htmlFor="james-coverage-date" style={{fontWeight: 500}}>
-                      When did James Smith lose coverage?<span className="red-star">*</span>
+                    <label htmlFor="primary-coverage-date" style={{fontWeight: 500}}>
+                      When did {primaryName} lose coverage?<span className="red-star">*</span>
+                    </label>
+                      <input
+                        id="primary-coverage-date"
+                        type="date"
+                        style={{marginLeft: 8, padding: '6px 10px', fontSize: '1rem', border: '1px solid #ccc', borderRadius: 4}}
+                        required
+                      />
+                  </div>
+                  <div style={{marginTop: 18, textAlign: 'left'}}>
+                    <div style={{fontWeight: 500, marginBottom: 8}}>
+                      Did {primaryName} lose coverage because he/she didn't pay premiums or he/she voluntarily terminated coverage? <span className="red-star">*</span>
+                      <div style={{fontWeight: 400, fontSize: '0.97rem', color: '#444', marginTop: 2}}>Note: This does not include leaving a job.</div>
+                    </div>
+                    <div style={{display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center'}}>
+                      <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
+                        <input type="radio" name="primaryLostCoverageReason" value="yes" style={{marginRight: 6}} /> Yes
+                      </label>
+                      <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
+                        <input type="radio" name="primaryLostCoverageReason" value="no" style={{marginRight: 6}} /> No
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
+              {lostCoveragePeople.includes('spouse') && (
+                <>
+                  <div style={{marginTop: 24, display: 'flex', alignItems: 'center', gap: 12}}>
+                    <label htmlFor="spouse-coverage-date" style={{fontWeight: 500}}>
+                      When did {spouseName} lose coverage?<span className="red-star">*</span>
                     </label>
                     <input
-                      id="james-coverage-date"
+                      id="spouse-coverage-date"
                       type="date"
                       style={{marginLeft: 8, padding: '6px 10px', fontSize: '1rem', border: '1px solid #ccc', borderRadius: 4}}
                       required
@@ -255,49 +316,55 @@ function AdditionalQuestionsScreen() {
                   </div>
                   <div style={{marginTop: 18, textAlign: 'left'}}>
                     <div style={{fontWeight: 500, marginBottom: 8}}>
-                      Did James Smith lose coverage because he/she didn't pay premiums or he/she voluntarily terminated coverage? <span className="red-star">*</span>
+                      Did {spouseName} lose coverage because he/she didn't pay premiums or he/she voluntarily terminated coverage? <span className="red-star">*</span>
                       <div style={{fontWeight: 400, fontSize: '0.97rem', color: '#444', marginTop: 2}}>Note: This does not include leaving a job.</div>
                     </div>
                     <div style={{display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center'}}>
                       <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
-                        <input type="radio" name="jamesLostCoverageReason" value="yes" style={{marginRight: 6}} /> Yes
+                        <input type="radio" name="spouseLostCoverageReason" value="yes" style={{marginRight: 6}} /> Yes
                       </label>
                       <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
-                        <input type="radio" name="jamesLostCoverageReason" value="no" style={{marginRight: 6}} /> No
+                        <input type="radio" name="spouseLostCoverageReason" value="no" style={{marginRight: 6}} /> No
                       </label>
                     </div>
                   </div>
                 </>
               )}
-              {lostCoveragePeople.includes("Milan Smith") && (
-                <>
-                  <div style={{marginTop: 24, display: 'flex', alignItems: 'center', gap: 12}}>
-                    <label htmlFor="milan-coverage-date" style={{fontWeight: 500}}>
-                      When did Milan Smith lose coverage?<span className="red-star">*</span>
-                    </label>
-                    <input
-                      id="milan-coverage-date"
-                      type="date"
-                      style={{marginLeft: 8, padding: '6px 10px', fontSize: '1rem', border: '1px solid #ccc', borderRadius: 4}}
-                      required
-                    />
-                  </div>
-                  <div style={{marginTop: 18, textAlign: 'left'}}>
-                    <div style={{fontWeight: 500, marginBottom: 8}}>
-                      Did Milan Smith lose coverage because he/she didn't pay premiums or he/she voluntarily terminated coverage? <span className="red-star">*</span>
-                      <div style={{fontWeight: 400, fontSize: '0.97rem', color: '#444', marginTop: 2}}>Note: This does not include leaving a job.</div>
-                    </div>
-                    <div style={{display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center'}}>
-                      <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
-                        <input type="radio" name="milanLostCoverageReason" value="yes" style={{marginRight: 6}} /> Yes
+              {/* Render conditional sections for dependents selected */}
+              {(household?.dependents || []).map((dep, idx) => {
+                const depName = `${dep.firstName || 'Dependent'} ${dep.lastName || ''}`.trim();
+                const id = `dep-${idx}`;
+                const selected = lostCoveragePeople.includes(id);
+                return selected ? (
+                  <React.Fragment key={`dep-block-${idx}`}>
+                    <div style={{marginTop: 24, display: 'flex', alignItems: 'center', gap: 12}}>
+                      <label htmlFor={`dep-${idx}-coverage-date`} style={{fontWeight: 500}}>
+                        When did {depName} lose coverage?<span className="red-star">*</span>
                       </label>
-                      <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
-                        <input type="radio" name="milanLostCoverageReason" value="no" style={{marginRight: 6}} /> No
-                      </label>
+                        <input
+                          id={`dep-${idx}-coverage-date`}
+                          type="date"
+                          style={{marginLeft: 8, padding: '6px 10px', fontSize: '1rem', border: '1px solid #ccc', borderRadius: 4}}
+                          required
+                        />
                     </div>
-                  </div>
-                </>
-              )}
+                    <div style={{marginTop: 18, textAlign: 'left'}}>
+                      <div style={{fontWeight: 500, marginBottom: 8}}>
+                        Did {depName} lose coverage because he/she didn't pay premiums or he/she voluntarily terminated coverage? <span className="red-star">*</span>
+                        <div style={{fontWeight: 400, fontSize: '0.97rem', color: '#444', marginTop: 2}}>Note: This does not include leaving a job.</div>
+                      </div>
+                      <div style={{display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center'}}>
+                        <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
+                          <input type="radio" name={`depLostCoverageReason-${idx}`} value="yes" style={{marginRight: 6}} /> Yes
+                        </label>
+                        <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
+                          <input type="radio" name={`depLostCoverageReason-${idx}`} value="no" style={{marginRight: 6}} /> No
+                        </label>
+                      </div>
+                    </div>
+                  </React.Fragment>
+                ) : null;
+              })}
             </>
           )}
         </section>
