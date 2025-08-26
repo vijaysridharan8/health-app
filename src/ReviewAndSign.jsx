@@ -8,6 +8,11 @@ export default function ReviewAndSign() {
   const { household } = useHousehold();
   const completedSections = [0,1,2,3,4,"dark5"];
   const [householdOpen, setHouseholdOpen] = useState(true);
+  const members = [
+    household?.primary,
+    household?.spouse,
+    ...(household?.dependents || [])
+  ].filter(Boolean);
   return (
     <div>
       <Header />
@@ -54,15 +59,13 @@ export default function ReviewAndSign() {
             <table style={{width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 12}}>
               {householdOpen && (
                 <tbody>
-                  {[ 
-                    household?.primary, 
-                    household?.spouse, 
-                    ...(household?.dependents || []) 
-                  ].filter(Boolean).map((member, idx) => (
+                  {members.length > 0 && (
+                    <tr>
+                      <td colSpan="6" style={{fontWeight: 600, fontSize: '1.12rem', background: '#f0f4f8', padding: '10px 8px 8px 8px', letterSpacing: '0.2px', borderBottom: '1.5px solid #e3e8f0'}}>Member Information</td>
+                    </tr>
+                  )}
+                  {members.map((member, idx) => (
                     <React.Fragment key={idx}>
-                      <tr>
-                         <td colSpan="6" style={{fontWeight: 600, fontSize: '1.12rem', background: '#f0f4f8', padding: '10px 8px 8px 8px', letterSpacing: '0.2px', borderBottom: '1.5px solid #e3e8f0'}}>Member Information</td>
-                      </tr>
                       <tr>
                         <td colSpan="6" style={{fontWeight: 700, fontSize: '1.11rem', background: '#fff', borderRadius: 6, padding: '12px 8px 8px 8px', boxShadow: '0 1px 2px rgba(0,0,0,0.01)'}}>{`${member.firstName || ''} ${member.lastName || ''}`.trim()}</td>
                       </tr>
@@ -116,55 +119,63 @@ export default function ReviewAndSign() {
                     </button>
                   </td>
                 </tr>
-          {/* Household Address Section */}
-          <div style={{marginTop: 24, background: '#fff', borderRadius: 8, border: '1.5px solid #e3e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.01)', padding: 16}}>
-            <div style={{fontWeight: 600, fontSize: '1.12rem', background: '#f0f4f8', padding: '10px 8px 8px 8px', letterSpacing: '0.2px', borderBottom: '1.5px solid #e3e8f0'}}>Household Address</div>
-            <table style={{width: '100%', borderCollapse: 'collapse', background: '#fff'}}>
-              <tbody>
-                <tr style={{background: '#fff', fontSize: '0.9rem'}}>
-                  <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>Address</th>
-                  <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '33.32%', background: '#fff', fontWeight: 'normal'}}>{household?.address || '315 Trumbull St, Hartford, CT 06103'}</th>
-                </tr>
-                <tr style={{background: '#fff', fontSize: '0.9rem'}}>
-                  <td colSpan="2" style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', fontWeight: 700}}>
-                    <span style={{display: 'flex', alignItems: 'center', gap: 10}}>
-                      <input type="checkbox" checked disabled style={{accentColor: '#b0b0b0', width: 18, height: 18, marginRight: 8, cursor: 'not-allowed'}} />
-                      <span style={{color: '#000', fontWeight: 500}}>All household members live at this address</span>
-                    </span>
-                  </td>
-                  <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
-                  <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
-                  <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
-                </tr>
-                <tr style={{background: '#fff', fontSize: '0.9rem'}}>
-                  <td colSpan="2" style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', fontWeight: 700}}>
-                    <span style={{display: 'flex', alignItems: 'center', gap: 10}}>
-                      <input type="checkbox" checked disabled style={{accentColor: '#b0b0b0', width: 18, height: 18, marginRight: 8, cursor: 'not-allowed'}} />
-                      <span style={{color: '#000', fontWeight: 500}}>This address is same as my mailing address</span>
-                    </span>
-                  </td>
-                  <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
-                  <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
-                  <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          
-          {/* Contact Information Section */}
-          <div style={{marginTop: 24, background: '#fff', borderRadius: 8, border: '1.5px solid #e3e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.01)', padding: 16}}>
-            <div style={{fontWeight: 600, fontSize: '1.12rem', background: '#f0f4f8', padding: '10px 8px 8px 8px', letterSpacing: '0.2px', borderBottom: '1.5px solid #e3e8f0'}}>Your Contact Information</div>
-            <table style={{width: '100%', borderCollapse: 'collapse', background: '#fff'}}>
-              <tbody>
-                <tr style={{background: '#fff', fontSize: '0.9rem'}}>
-                  <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>Phone Number</th>
-                  <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '33.32%', background: '#fff', fontWeight: 'normal'}}>{household?.phone || '342-234-2333'}</th>
-                  <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>Alternate Phone Number</th>
-                  <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '33.32%', background: '#fff', fontWeight: 'normal'}}>{household?.altPhone || '876-345-5444'}</th>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          {/* Household Address Section (moved inside main table) */}
+          <tr>
+            <td colSpan="6" style={{padding: 0, background: '#fff', border: 'none'}}>
+              <div style={{marginTop: 0, background: '#fff', borderRadius: 8, border: '1.5px solid #e3e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.01)', padding: 0}}>
+                <div style={{fontWeight: 600, fontSize: '1.12rem', background: '#f0f4f8', padding: '10px 8px 8px 8px', letterSpacing: '0.2px', borderBottom: '1.5px solid #e3e8f0'}}>Household Address</div>
+                <table style={{width: '100%', borderCollapse: 'collapse', background: '#fff'}}>
+                  <tbody>
+                    <tr style={{background: '#fff', fontSize: '0.9rem'}}>
+                      <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>Address</th>
+                      <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '33.32%', background: '#fff', fontWeight: 'normal'}}>{household?.address || '315 Trumbull St, Hartford, CT 06103'}</th>
+                    </tr>
+                    <tr style={{background: '#fff', fontSize: '0.9rem'}}>
+                      <td colSpan="2" style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', fontWeight: 700}}>
+                        <span style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                          <input type="checkbox" checked disabled style={{accentColor: '#b0b0b0', width: 18, height: 18, marginRight: 8, cursor: 'not-allowed'}} />
+                          <span style={{color: '#000', fontWeight: 500}}>All household members live at this address</span>
+                        </span>
+                      </td>
+                      <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
+                      <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
+                      <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
+                    </tr>
+                    <tr style={{background: '#fff', fontSize: '0.9rem'}}>
+                      <td colSpan="2" style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', fontWeight: 700}}>
+                        <span style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                          <input type="checkbox" checked disabled style={{accentColor: '#b0b0b0', width: 18, height: 18, marginRight: 8, cursor: 'not-allowed'}} />
+                          <span style={{color: '#000', fontWeight: 500}}>This address is same as my mailing address</span>
+                        </span>
+                      </td>
+                      <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
+                      <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
+                      <td style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', width: '16.66%'}}></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </td>
+          </tr>
+
+          {/* Contact Information Section (moved inside main table) */}
+          <tr>
+            <td colSpan="6" style={{padding: 0, background: '#fff', border: 'none'}}>
+              <div style={{marginTop: 0, background: '#fff', borderRadius: 8, border: '1.5px solid #e3e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.01)', padding: 0}}>
+                <div style={{fontWeight: 600, fontSize: '1.12rem', background: '#f0f4f8', padding: '10px 8px 8px 8px', letterSpacing: '0.2px', borderBottom: '1.5px solid #e3e8f0'}}>Your Contact Information</div>
+                <table style={{width: '100%', borderCollapse: 'collapse', background: '#fff'}}>
+                  <tbody>
+                    <tr style={{background: '#fff', fontSize: '0.9rem'}}>
+                      <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>Phone Number</th>
+                      <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '33.32%', background: '#fff', fontWeight: 'normal'}}>{household?.phone || '342-234-2333'}</th>
+                      <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>Alternate Phone Number</th>
+                      <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '33.32%', background: '#fff', fontWeight: 'normal'}}>{household?.altPhone || '876-345-5444'}</th>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </td>
+          </tr>
                 </tbody>
               )}
             </table>
