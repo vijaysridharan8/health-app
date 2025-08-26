@@ -38,6 +38,7 @@ export default function ReviewAndSign() {
           <div style={{marginTop: 36, marginBottom: 24, border: '1.5px solid #e3e8f0', borderRadius: 8, background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.01)'}}>
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#1976d2', color: '#fff', borderTopLeftRadius: 8, borderTopRightRadius: 8, padding: '12px 18px 12px 18px', fontWeight: 700, fontSize: '1.13rem', letterSpacing: '0.2px'}}>
               <span>My Household</span>
+              
               <span
                 onClick={() => setHouseholdOpen((open) => !open)}
                 style={{cursor: 'pointer', color: '#fff', fontSize: 20, fontWeight: 700, display: 'flex', alignItems: 'center'}}
@@ -49,6 +50,7 @@ export default function ReviewAndSign() {
                 </svg>
               </span>
             </div>
+            
             <table style={{width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 12}}>
               {householdOpen && (
                 <tbody>
@@ -58,6 +60,9 @@ export default function ReviewAndSign() {
                     ...(household?.dependents || []) 
                   ].filter(Boolean).map((member, idx) => (
                     <React.Fragment key={idx}>
+                      <tr>
+                         <td colSpan="6" style={{fontWeight: 600, fontSize: '1.12rem', background: '#f0f4f8', padding: '10px 8px 8px 8px', letterSpacing: '0.2px', borderBottom: '1.5px solid #e3e8f0'}}>Member Information</td>
+                      </tr>
                       <tr>
                         <td colSpan="6" style={{fontWeight: 700, fontSize: '1.11rem', background: '#fff', borderRadius: 6, padding: '12px 8px 8px 8px', boxShadow: '0 1px 2px rgba(0,0,0,0.01)'}}>{`${member.firstName || ''} ${member.lastName || ''}`.trim()}</td>
                       </tr>
@@ -82,6 +87,35 @@ export default function ReviewAndSign() {
                       </tr>
                     </React.Fragment>
                   ))}
+                  {/* Two empty rows for spacing */}
+                <tr><td colSpan="6" style={{height: '12px', background: '#fff', border: 'none', padding: 0}}></td></tr>
+                <tr><td colSpan="6" style={{height: '12px', background: '#fff', border: 'none', padding: 0}}></td></tr>
+                {/* Add a household member button row */}
+                  <tr>
+                  <td colSpan="6" style={{padding: 0, background: '#fff', border: 'none'}}>
+                    <button
+                      style={{
+                        width: '100%',
+                        border: '2px solid #1976d2',
+                        color: '#1976d2',
+                        background: '#f7fbff',
+                        borderRadius: 8,
+                        fontWeight: 600,
+                        fontSize: '1.04rem',
+                        padding: '14px 0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 10,
+                        cursor: 'pointer',
+                        margin: 0
+                      }}
+                    >
+                      <span style={{fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', marginRight: 4}}>+</span>
+                      Add a household member
+                    </button>
+                  </td>
+                </tr>
           {/* Household Address Section */}
           <div style={{marginTop: 24, background: '#fff', borderRadius: 8, border: '1.5px solid #e3e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.01)', padding: 16}}>
             <div style={{fontWeight: 600, fontSize: '1.12rem', background: '#f0f4f8', padding: '10px 8px 8px 8px', letterSpacing: '0.2px', borderBottom: '1.5px solid #e3e8f0'}}>Household Address</div>
@@ -116,6 +150,7 @@ export default function ReviewAndSign() {
               </tbody>
             </table>
           </div>
+          
           {/* Contact Information Section */}
           <div style={{marginTop: 24, background: '#fff', borderRadius: 8, border: '1.5px solid #e3e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.01)', padding: 16}}>
             <div style={{fontWeight: 600, fontSize: '1.12rem', background: '#f0f4f8', padding: '10px 8px 8px 8px', letterSpacing: '0.2px', borderBottom: '1.5px solid #e3e8f0'}}>Your Contact Information</div>
