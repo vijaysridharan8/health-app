@@ -29,13 +29,30 @@ export function HouseholdProvider({ children }) {
     altPhone: ''
   ,tax: [],
   income: []
+  ,specialEnrollment: { lostCoverage: [], lostCoverageDetails: {} }
   });
+
+  // Helper to generate a stable-ish id for dependents when SSN is not available
+  const generateId = () => {
+    try {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    } catch (e) {
+      // fallthrough to fallback
+    }
+    return 'id-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
+  };
 
   // Prevent fetch if data is already set (e.g., after uploadDoc)
   const [isPopulated, setIsPopulated] = useState(false);
   // Wrap setHousehold to merge incoming data and set the flag
   const setHouseholdAndFlag = (data) => {
-    setHousehold((prev) => ({ ...prev, ...data }));
+    // Ensure dependents have stable ids (use existing id if present, otherwise generate one)
+    const processed = { ...data };
+    if (Array.isArray(data.dependents)) {
+      processed.dependents = data.dependents.map((dep) => ({ id: dep.id || generateId(), ...dep }));
+    }
+
+    setHousehold((prev) => ({ ...prev, ...processed }));
     setIsPopulated(true);
   };
 

@@ -58,7 +58,53 @@ const specialEnrollmentOptions = [
 
 function AdditionalQuestionsScreen() {
   const [showIdentityPopup, setShowIdentityPopup] = useState(false);
-  const { household } = useHousehold();
+  const { household, setHousehold } = useHousehold();
+  // Helper to generate a stable-ish id when SSN isn't present
+  const generateId = () => {
+    try {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    } catch (e) {
+      // ignore
+    }
+    return 'id-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
+  };
+
+  // Ensure dependents have stable ids and migrate any legacy specialEnrollment ids
+  useEffect(() => {
+    if (!household) return;
+    const deps = household.dependents || [];
+    let created = false;
+    const newDeps = deps.map((d) => {
+      if (!d.id) {
+        created = true;
+        return { id: generateId(), ...d };
+      }
+      return d;
+    });
+    if (created && setHousehold) {
+      // merge updated dependents back into household
+      setHousehold({ dependents: newDeps });
+      return; // wait for household to update before attempting migration
+    }
+
+    // Migrate any legacy dep-<idx> ids in household.specialEnrollment.lostCoverage -> use matching dependent ids
+    if (household.specialEnrollment && Array.isArray(household.specialEnrollment.lostCoverage) && deps.length > 0) {
+      const legacyPrefix = 'dep-';
+      const mapping = {};
+      let needsUpdate = false;
+      household.dependents.forEach((d, idx) => {
+        const legacy = `${legacyPrefix}${idx}`;
+        if (household.specialEnrollment.lostCoverage.includes(legacy)) {
+          mapping[legacy] = d.id || generateId();
+          needsUpdate = true;
+        }
+      });
+      if (needsUpdate && setHousehold) {
+        const newLost = household.specialEnrollment.lostCoverage.map((it) => mapping[it] || it);
+        setHousehold({ specialEnrollment: { ...household.specialEnrollment, lostCoverage: newLost } });
+      }
+    }
+  }, [household, setHousehold]);
   const primaryName = `${household?.primary?.firstName || 'Primary'} ${household?.primary?.lastName || ''}`.trim();
   const spouseName = `${household?.spouse?.firstName || 'Spouse'} ${household?.spouse?.lastName || ''}`.trim();
   useEffect(() => {
@@ -80,6 +126,7 @@ function AdditionalQuestionsScreen() {
   const [milanHispanicOrigin, setMilanHispanicOrigin] = useState("");
   const [milanRace, setMilanRace] = useState("");
   const [lostCoveragePeople, setLostCoveragePeople] = useState([]); // stores ids: 'primary' | 'spouse' | 'dep-<idx>' | 'none'
+  const [lostCoverageDetails, setLostCoverageDetails] = useState({}); // { [id]: { date: 'YYYY-MM-DD', reason: 'yes'|'no' } }
   const [highlightNavBlue, setHighlightNavBlue] = useState(true);
   const [showFifthDark, setShowFifthDark] = useState(true);
   const dropdownRef = useRef(null);
@@ -159,6 +206,53 @@ function AdditionalQuestionsScreen() {
       } else {
         next = next.filter((v) => v !== value);
       }
+      // persist to household.specialEnrollment
+      try {
+        const se = household?.specialEnrollment || {};
+        const newSE = { ...se, lostCoverage: next, lostCoverageDetails: lostCoverageDetails };
+        if (setHousehold) setHousehold({ specialEnrollment: newSE });
+      } catch (err) {
+        console.error('Error persisting specialEnrollment lostCoverage:', err);
+      }
+      return next;
+    });
+  };
+
+  // Initialize local lostCoverage state from household.specialEnrollment when available
+  useEffect(() => {
+    if (!household) return;
+    const se = household.specialEnrollment || {};
+    if (Array.isArray(se.lostCoverage) && se.lostCoverage.length > 0) {
+      setLostCoveragePeople(se.lostCoverage);
+    }
+    if (se.lostCoverageDetails && typeof se.lostCoverageDetails === 'object') {
+      setLostCoverageDetails(se.lostCoverageDetails);
+    }
+  }, [household]);
+
+  const persistLostCoverageDetails = (nextDetails) => {
+    setLostCoverageDetails(nextDetails);
+    try {
+      const se = household?.specialEnrollment || {};
+      const newSE = { ...se, lostCoverage: lostCoveragePeople, lostCoverageDetails: nextDetails };
+      if (setHousehold) setHousehold({ specialEnrollment: newSE });
+    } catch (err) {
+      console.error('Error persisting specialEnrollment lostCoverageDetails:', err);
+    }
+  };
+
+  const handleCoverageDateChange = (id, value) => {
+    setLostCoverageDetails((prev) => {
+      const next = { ...prev, [id]: { ...(prev[id] || {}), date: value } };
+      persistLostCoverageDetails(next);
+      return next;
+    });
+  };
+
+  const handleCoverageReasonChange = (id, value) => {
+    setLostCoverageDetails((prev) => {
+      const next = { ...prev, [id]: { ...(prev[id] || {}), reason: value } };
+      persistLostCoverageDetails(next);
       return next;
     });
   };
@@ -248,9 +342,9 @@ function AdditionalQuestionsScreen() {
                   {/* Render dependents dynamically */}
                   { (household?.dependents || []).map((dep, idx) => {
                     const depName = `${dep.firstName || 'Dependent'} ${dep.lastName || ''}`.trim();
-                    const id = `dep-${idx}`;
+                    const id = dep.id || `dep-${idx}`;
                     return (
-                      <label key={`dep-${idx}`}>
+                      <label key={id}>
                         <input
                           type="checkbox"
                           name="lostCoveragePeople"
@@ -283,6 +377,8 @@ function AdditionalQuestionsScreen() {
                         type="date"
                         style={{marginLeft: 8, padding: '6px 10px', fontSize: '1rem', border: '1px solid #ccc', borderRadius: 4}}
                         required
+                        value={lostCoverageDetails['primary']?.date || ''}
+                        onChange={(e) => handleCoverageDateChange('primary', e.target.value)}
                       />
                   </div>
                   <div style={{marginTop: 18, textAlign: 'left'}}>
@@ -292,10 +388,10 @@ function AdditionalQuestionsScreen() {
                     </div>
                     <div style={{display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center'}}>
                       <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
-                        <input type="radio" name="primaryLostCoverageReason" value="yes" style={{marginRight: 6}} /> Yes
+                        <input type="radio" name="primaryLostCoverageReason" value="yes" style={{marginRight: 6}} checked={lostCoverageDetails['primary']?.reason === 'yes'} onChange={() => handleCoverageReasonChange('primary', 'yes')} /> Yes
                       </label>
                       <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
-                        <input type="radio" name="primaryLostCoverageReason" value="no" style={{marginRight: 6}} /> No
+                        <input type="radio" name="primaryLostCoverageReason" value="no" style={{marginRight: 6}} checked={lostCoverageDetails['primary']?.reason === 'no'} onChange={() => handleCoverageReasonChange('primary', 'no')} /> No
                       </label>
                     </div>
                   </div>
@@ -312,6 +408,8 @@ function AdditionalQuestionsScreen() {
                       type="date"
                       style={{marginLeft: 8, padding: '6px 10px', fontSize: '1rem', border: '1px solid #ccc', borderRadius: 4}}
                       required
+                      value={lostCoverageDetails['spouse']?.date || ''}
+                      onChange={(e) => handleCoverageDateChange('spouse', e.target.value)}
                     />
                   </div>
                   <div style={{marginTop: 18, textAlign: 'left'}}>
@@ -321,10 +419,10 @@ function AdditionalQuestionsScreen() {
                     </div>
                     <div style={{display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center'}}>
                       <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
-                        <input type="radio" name="spouseLostCoverageReason" value="yes" style={{marginRight: 6}} /> Yes
+                        <input type="radio" name="spouseLostCoverageReason" value="yes" style={{marginRight: 6}} checked={lostCoverageDetails['spouse']?.reason === 'yes'} onChange={() => handleCoverageReasonChange('spouse', 'yes')} /> Yes
                       </label>
                       <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
-                        <input type="radio" name="spouseLostCoverageReason" value="no" style={{marginRight: 6}} /> No
+                        <input type="radio" name="spouseLostCoverageReason" value="no" style={{marginRight: 6}} checked={lostCoverageDetails['spouse']?.reason === 'no'} onChange={() => handleCoverageReasonChange('spouse', 'no')} /> No
                       </label>
                     </div>
                   </div>
@@ -333,19 +431,21 @@ function AdditionalQuestionsScreen() {
               {/* Render conditional sections for dependents selected */}
               {(household?.dependents || []).map((dep, idx) => {
                 const depName = `${dep.firstName || 'Dependent'} ${dep.lastName || ''}`.trim();
-                const id = `dep-${idx}`;
+                const id = dep.id || `dep-${idx}`;
                 const selected = lostCoveragePeople.includes(id);
                 return selected ? (
-                  <React.Fragment key={`dep-block-${idx}`}>
+                  <React.Fragment key={`dep-block-${id}`}>
                     <div style={{marginTop: 24, display: 'flex', alignItems: 'center', gap: 12}}>
-                      <label htmlFor={`dep-${idx}-coverage-date`} style={{fontWeight: 500}}>
+                      <label htmlFor={`${id}-coverage-date`} style={{fontWeight: 500}}>
                         When did {depName} lose coverage?<span className="red-star">*</span>
                       </label>
                         <input
-                          id={`dep-${idx}-coverage-date`}
+                          id={`${id}-coverage-date`}
                           type="date"
                           style={{marginLeft: 8, padding: '6px 10px', fontSize: '1rem', border: '1px solid #ccc', borderRadius: 4}}
                           required
+                          value={lostCoverageDetails[id]?.date || ''}
+                          onChange={(e) => handleCoverageDateChange(id, e.target.value)}
                         />
                     </div>
                     <div style={{marginTop: 18, textAlign: 'left'}}>
@@ -355,10 +455,10 @@ function AdditionalQuestionsScreen() {
                       </div>
                       <div style={{display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center'}}>
                         <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
-                          <input type="radio" name={`depLostCoverageReason-${idx}`} value="yes" style={{marginRight: 6}} /> Yes
+                          <input type="radio" name={`depLostCoverageReason-${id}`} value="yes" style={{marginRight: 6}} checked={lostCoverageDetails[id]?.reason === 'yes'} onChange={() => handleCoverageReasonChange(id, 'yes')} /> Yes
                         </label>
                         <label style={{display: 'flex', alignItems: 'center', fontWeight: 400}}>
-                          <input type="radio" name={`depLostCoverageReason-${idx}`} value="no" style={{marginRight: 6}} /> No
+                          <input type="radio" name={`depLostCoverageReason-${id}`} value="no" style={{marginRight: 6}} checked={lostCoverageDetails[id]?.reason === 'no'} onChange={() => handleCoverageReasonChange(id, 'no')} /> No
                         </label>
                       </div>
                     </div>
