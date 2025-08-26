@@ -34,7 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class DocumentController {
     private static final Logger logger = LoggerFactory.getLogger(DocumentController.class);
 
-    @Value("${OPENAI_API_KEY}
+    @Value("${OPENAI_API_KEY}")
     private String openaiApiKey;
 
     // Store document text in memory for each session (simple demo, not for production)
