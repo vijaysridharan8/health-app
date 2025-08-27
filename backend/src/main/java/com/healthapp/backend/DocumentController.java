@@ -341,8 +341,44 @@ public class DocumentController {
                         String firstName = getTagValue(indivElem, "firstName");
                         String lastName = getTagValue(indivElem, "lastName");
                         String gender = getTagValue(indivElem, "genderCode");
-                        String dob = getTagValue(indivElem, "DOB");
-                        String ssn = getTagValue(indivElem, "SSN");
+                        String dob = getTagValue(indivElem, "dob");
+                        // normalize DOB to MM/dd/yyyy if possible (input often YYYY-MM-dd)
+                        String formattedDob = dob;
+                        if (dob != null && !dob.isEmpty()) {
+                            try {
+                                java.time.format.DateTimeFormatter inputFmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                                java.time.format.DateTimeFormatter outFmt = java.time.format.DateTimeFormatter.ofPattern("MM/dd/yyyy");
+                                java.time.LocalDate ld = java.time.LocalDate.parse(dob, inputFmt);
+                                formattedDob = ld.format(outFmt);
+                            } catch (Exception e) {
+                                try {
+                                    // fallback to ISO parse
+                                    java.time.LocalDate ld = java.time.LocalDate.parse(dob);
+                                    formattedDob = ld.format(java.time.format.DateTimeFormatter.ofPattern("MM/dd/yyyy"));
+                                } catch (Exception ex) {
+                                    // leave as-is if parsing fails
+                                    formattedDob = dob;
+                                }
+                            }
+                        }
+                        // SSN may be nested under <ssnDetail><ssn>...</ssn></ssnDetail>
+                        String ssn = null;
+                        try {
+                            NodeList ssnDetails = indivElem.getElementsByTagName("ssnDetail");
+                            if (ssnDetails != null && ssnDetails.getLength() > 0) {
+                                org.w3c.dom.Node sd = ssnDetails.item(0);
+                                if (sd.getNodeType() == org.w3c.dom.Node.ELEMENT_NODE) {
+                                    org.w3c.dom.Element sdElem = (org.w3c.dom.Element) sd;
+                                    ssn = getTagValue(sdElem, "ssn");
+                                }
+                            }
+                        } catch (Exception ignore) {
+                        }
+                        // fallback: try direct ssn tag variants
+                        if (ssn == null || ssn.isEmpty()) {
+                            ssn = getTagValue(indivElem, "SSN");
+                            if (ssn == null || ssn.isEmpty()) ssn = getTagValue(indivElem, "ssn");
+                        }
                         String primaryStatus = getTagValue(indivElem, "primaryStatusInd");
                         boolean isPrimary = "true".equalsIgnoreCase(primaryStatus) || "yes".equalsIgnoreCase(primaryStatus) || "1".equals(primaryStatus);
 
@@ -350,8 +386,8 @@ public class DocumentController {
                         ind.put("firstName", firstName == null ? "" : firstName);
                         ind.put("lastName", lastName == null ? "" : lastName);
                         ind.put("genderCode", gender == null ? "" : gender);
-                        ind.put("DOB", dob == null ? "" : dob);
-                        ind.put("SSN", ssn == null ? "" : ssn);
+                        ind.put("dob", formattedDob == null ? "" : formattedDob);
+                        ind.put("ssn", ssn == null ? "" : ssn);
                         if (isPrimary && primaryObj == null) {
                             primaryObj = ind;
                         } else {
@@ -386,9 +422,10 @@ public class DocumentController {
                                 if (target == null || src == null) return;
                                 if (src.has("firstName")) target.put("firstName", src.optString("firstName", target.optString("firstName", "")));
                                 if (src.has("lastName")) target.put("lastName", src.optString("lastName", target.optString("lastName", "")));
-                                if (src.has("DOB")) target.put("dob", src.optString("DOB", target.optString("dob", "")));
+                                if (src.has("dob")) target.put("dob", src.optString("dob", target.optString("dob", "")));
                                 if (src.has("genderCode")) target.put("gender", src.optString("genderCode", target.optString("gender", "")));
-                                if (src.has("SSN")) target.put("ssn", src.optString("SSN", target.optString("ssn", "")));
+                                if (src.has("ssn")) target.put("ssn", src.optString("ssn", target.optString("ssn", "")));
+                                else if (src.has("SSN")) target.put("ssn", src.optString("SSN", target.optString("ssn", "")));
                             };
 
                             // Helper to search dependents array by SSN
@@ -404,7 +441,7 @@ public class DocumentController {
 
                             // Merge primary if present
                             if (primaryObj != null) {
-                                String pSSN = primaryObj.optString("SSN", "").trim();
+                                        String pSSN = primaryObj.optString("ssn", "").trim();
                                 boolean mergedPrimary = false;
                                 if (incomingHH.has("primary") && !incomingHH.isNull("primary")) {
                                     org.json.JSONObject inPrimary = incomingHH.getJSONObject("primary");
@@ -425,9 +462,9 @@ public class DocumentController {
                                         org.json.JSONObject newPrimary = new org.json.JSONObject();
                                         newPrimary.put("firstName", primaryObj.optString("firstName", ""));
                                         newPrimary.put("lastName", primaryObj.optString("lastName", ""));
-                                        newPrimary.put("dob", primaryObj.optString("DOB", ""));
+                                        newPrimary.put("dob", primaryObj.optString("dob", ""));
                                         newPrimary.put("gender", primaryObj.optString("genderCode", ""));
-                                        newPrimary.put("ssn", primaryObj.optString("SSN", ""));
+                                        newPrimary.put("ssn", primaryObj.optString("ssn", ""));
                                         incomingHH.put("primary", newPrimary);
                                     } else {
                                         // add as dependent
@@ -435,9 +472,9 @@ public class DocumentController {
                                         dep.put("id", UUID.randomUUID().toString());
                                         dep.put("firstName", primaryObj.optString("firstName", ""));
                                         dep.put("lastName", primaryObj.optString("lastName", ""));
-                                        dep.put("dob", primaryObj.optString("DOB", ""));
+                                        dep.put("dob", primaryObj.optString("dob", ""));
                                         dep.put("gender", primaryObj.optString("genderCode", ""));
-                                        dep.put("ssn", primaryObj.optString("SSN", ""));
+                                        dep.put("ssn", primaryObj.optString("ssn", ""));
                                         incomingDependents.put(dep);
                                     }
                                 }
@@ -446,7 +483,7 @@ public class DocumentController {
                             // Merge dependents
                             for (int di = 0; di < dependents.length(); di++) {
                                 org.json.JSONObject parsedDep = dependents.getJSONObject(di);
-                                String dSSN = parsedDep.optString("SSN", "").trim();
+                                String dSSN = parsedDep.optString("ssn", "").trim();
                                 boolean merged = false;
                                 if (dSSN.length() > 0) {
                                     // match primary
@@ -480,15 +517,44 @@ public class DocumentController {
                                     newDep.put("id", UUID.randomUUID().toString());
                                     newDep.put("firstName", parsedDep.optString("firstName", ""));
                                     newDep.put("lastName", parsedDep.optString("lastName", ""));
-                                    newDep.put("dob", parsedDep.optString("DOB", ""));
+                                    newDep.put("dob", parsedDep.optString("dob", ""));
                                     newDep.put("gender", parsedDep.optString("genderCode", ""));
-                                    newDep.put("ssn", parsedDep.optString("SSN", ""));
+                                    newDep.put("ssn", parsedDep.optString("ssn", ""));
                                     incomingDependents.put(newDep);
                                 }
                             }
 
                             // attach dependents array back to incomingHH
                             incomingHH.put("dependents", incomingDependents);
+
+                            // If spouse exists but contains no meaningful data, remove it
+                            try {
+                                if (incomingHH.has("spouse") && !incomingHH.isNull("spouse")) {
+                                    org.json.JSONObject spouseObj = incomingHH.getJSONObject("spouse");
+                                    boolean hasData = false;
+                                    String[] checkKeys = new String[]{"firstName", "lastName", "ssn", "dob", "gender", "citizen"};
+                                    for (String k : checkKeys) {
+                                        if (spouseObj.has(k) && spouseObj.optString(k, "").trim().length() > 0) {
+                                            hasData = true;
+                                            break;
+                                        }
+                                    }
+                                    // also consider boolean flags like applyForCoverage or citizen
+                                    if (!hasData) {
+                                        if (spouseObj.has("applyForCoverage") && spouseObj.optBoolean("applyForCoverage", false)) {
+                                            hasData = true;
+                                        }
+                                        if (spouseObj.has("citizen") && (spouseObj.optBoolean("citizen", false))) {
+                                            hasData = true;
+                                        }
+                                    }
+                                    if (!hasData) {
+                                        incomingHH.remove("spouse");
+                                    }
+                                }
+                            } catch (Exception ignore) {
+                            }
+
                             resp.put("mergedHousehold", incomingHH);
                         }
                     } catch (Exception mergeEx) {

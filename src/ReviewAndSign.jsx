@@ -17,6 +17,18 @@ export default function ReviewAndSign() {
   const [incomeOpen, setIncomeOpen] = useState(true);
   const [additionalOpen, setAdditionalOpen] = useState(true);
 
+  // Format SSN for display: digits-only -> XXX-XX-XXXX
+  const formatSSN = (val) => {
+    try {
+      if (!val && val !== 0) return '';
+      const s = String(val).replace(/\D/g, '');
+      if (s.length === 9) return `${s.slice(0,3)}-${s.slice(3,5)}-${s.slice(5)}`;
+      return val;
+    } catch (e) {
+      return val;
+    }
+  };
+
   // Assumed shapes (if backend provides):
   // household.tax => [{ name, taxStatus, reconciledPremiumTaxCredits }]
   // household.income => [{ ownerName, amount, frequency, companyType }]
@@ -82,11 +94,11 @@ export default function ReviewAndSign() {
                         <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>Date of Birth</th>
                         <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 'normal'}}>{member.dob || ''}</th>
                         <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>Gender</th>
-                        <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 'normal'}}>{member.gender ? 'Female' : 'Male'}</th>
+                        <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 'normal'}}>{member.gender === 'F' ? 'Female' : 'Male'}</th>
                       </tr>
                       <tr style={{background: '#fff', fontSize: '0.9rem'}}>
                         <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>Social Security Number</th>
-                        <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 'normal'}}>{member.ssn || ''}</th>
+                        <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 'normal'}}>{formatSSN(member.ssn) || ''}</th>
                         <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>US Citizen or Naturalized Citizen</th>
                         <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 'normal'}}>{member.citizen ? 'No' : 'Yes'}</th>
                       </tr>

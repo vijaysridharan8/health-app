@@ -1010,7 +1010,11 @@ function AdditionalQuestionsScreen() {
         </div>
       </main>
   <IdentityConfirmation open={showIdentityPopup} onClose={() => setShowIdentityPopup(false)} />
-  {/* No aside/floating panel for now, but can be added if needed */}
+  {/* Debug: show household JSON for easier debugging */}
+  <aside style={{ position: 'fixed', right: 12, bottom: 12, width: 360, maxHeight: '50vh', overflow: 'auto', background: 'white', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', borderRadius: 8, padding: 12, zIndex: 9999 }}>
+    <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: 8 }}>Household (debug)</div>
+    <pre style={{ fontSize: '0.8rem', lineHeight: 1.2, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{JSON.stringify(household, null, 2)}</pre>
+  </aside>
       </div>
     </>
   );
