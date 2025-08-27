@@ -13,7 +13,7 @@ export default function UploadDocumentScreen() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploadedDocInfo, setUploadedDocInfo] = useState(null); // { name, filename, uploadedAt }
-  const { setHousehold } = useHousehold();
+  const { household, setHousehold } = useHousehold();
 
   const handleComputerUploadClick = () => {
     if (fileInputRef.current) {
@@ -41,6 +41,14 @@ export default function UploadDocumentScreen() {
           try {
             const json = JSON.parse(text);
             const fields = json.fields || {};
+            // helper to read multiple possible variants of a key from an object
+            const getField = (obj, ...keys) => {
+              if (!obj) return '';
+              for (const k of keys) {
+                if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k];
+              }
+              return '';
+            };
             if (fields['First Name'] || fields['Last Name']) {
               docName = `${fields['First Name'] || ''} ${fields['Last Name'] || ''}`.trim();
             }
@@ -73,38 +81,38 @@ export default function UploadDocumentScreen() {
               }
             }
 
-            // Set household context
+            // Set household context (normalize common key variants for DOB and SSN)
             setHousehold({
               primary: {
-                firstName: fields['First Name'] || '',
-                lastName: fields['Last Name'] || '',
-                dob: fields['Date of Birth'] || '',
-                gender: fields['Gender'] || '',
-                ssn: fields['SSN'] || '',
-                citizen: fields['US Citizen or Naturalized Citizen'] || '',
-                applyForCoverage: fields['Applying for Coverage'] === 'Yes'
+                firstName: getField(fields, 'First Name', 'firstName', 'givenName') || '',
+                lastName: getField(fields, 'Last Name', 'lastName', 'familyName') || '',
+                dob: getField(fields, 'Date of Birth', 'DOB', 'dob', 'DateOfBirth', 'date_of_birth') || '',
+                gender: getField(fields, 'Gender', 'gender') || '',
+                ssn: getField(fields, 'SSN', 'ssn', 'Social Security Number', 'socialSecurityNumber') || '',
+                citizen: getField(fields, 'US Citizen or Naturalized Citizen') || '',
+                applyForCoverage: getField(fields, 'Applying for Coverage') === 'Yes'
               },
               spouse: fields.Spouse ? {
-                firstName: fields.Spouse['First Name'] || '',
-                lastName: fields.Spouse['Last Name'] || '',
-                dob: fields.Spouse['Date of Birth'] || '',
-                gender: fields.Spouse['Gender'] || '',
-                ssn: fields.Spouse['SSN'] || '',
-                citizen: fields.Spouse['US Citizen or Naturalized Citizen'] || '',
-                applyForCoverage: fields.Spouse['Applying for Coverage'] === 'Yes'
+                firstName: getField(fields.Spouse, 'First Name', 'firstName', 'givenName') || '',
+                lastName: getField(fields.Spouse, 'Last Name', 'lastName', 'familyName') || '',
+                dob: getField(fields.Spouse, 'Date of Birth', 'DOB', 'dob', 'DateOfBirth', 'date_of_birth') || '',
+                gender: getField(fields.Spouse, 'Gender', 'gender') || '',
+                ssn: getField(fields.Spouse, 'SSN', 'ssn', 'Social Security Number', 'socialSecurityNumber') || '',
+                citizen: getField(fields.Spouse, 'US Citizen or Naturalized Citizen') || '',
+                applyForCoverage: getField(fields.Spouse, 'Applying for Coverage') === 'Yes'
               } : null,
               dependents: Array.isArray(fields.Dependents) ? fields.Dependents.map(dep => ({
-                firstName: dep['First Name'] || '',
-                lastName: dep['Last Name'] || '',
-                dob: dep['Date of Birth'] || '',
-                gender: dep['Gender'] || '',
-                ssn: dep['SSN'] || '',
-                citizen: dep['US Citizen or Naturalized Citizen'] || '',
-                applyForCoverage: dep['Applying for Coverage'] === 'Yes'
+                firstName: getField(dep, 'First Name', 'firstName', 'givenName') || '',
+                lastName: getField(dep, 'Last Name', 'lastName', 'familyName') || '',
+                dob: getField(dep, 'Date of Birth', 'DOB', 'dob', 'DateOfBirth', 'date_of_birth') || '',
+                gender: getField(dep, 'Gender', 'gender') || '',
+                ssn: getField(dep, 'SSN', 'ssn', 'Social Security Number', 'socialSecurityNumber') || '',
+                citizen: getField(dep, 'US Citizen or Naturalized Citizen') || '',
+                applyForCoverage: getField(dep, 'Applying for Coverage') === 'Yes'
               })) : [],
-              address: fields['Address'] || fields['Address Line 1'] || '',
-              phone: fields['Phone'] || fields['Phone Number'] || '',
-              altPhone: fields['Alternate Phone Number'] || fields['Alt Phone'] || '',
+              address: getField(fields, 'Address', 'Address Line 1', 'address', 'addressLine1') || '',
+              phone: getField(fields, 'Phone', 'Phone Number', 'phone', 'phoneNumber') || '',
+              altPhone: getField(fields, 'Alternate Phone Number', 'Alt Phone', 'alternatePhone') || '',
               tax: taxItems,
               income: Array.isArray(incomeFromLLM) ? incomeFromLLM : []
             });
@@ -135,9 +143,56 @@ export default function UploadDocumentScreen() {
   const handleChange = (e) => {
     setAnswers({ ...answers, [e.target.name]: e.target.value });
   };
-  const handleNext = () => {
+  const handleNext = async () => {
+    // If user consented to share with DSS, call backend /api/processCase
+    if (answers.consentDSS === 'yes') {
+      try {
+        // include current household so server can merge and return mergedHousehold
+        const payload = {
+          consentDSS: 'yes',
+          household: household || null,
+          uploadedDocInfo: uploadedDocInfo || null
+        };
+
+        const resp = await fetch('http://localhost:8080/api/processCase', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const text = await resp.text();
+        if (resp.ok) {
+          try {
+            const json = JSON.parse(text);
+            // prefer backend merged household if present
+            if (json.mergedHousehold && setHousehold) {
+              setHousehold(json.mergedHousehold);
+            }
+            // also persist the caseId onto the household
+            if (json.caseId && setHousehold) {
+              try {
+                // use updater form to avoid overwriting
+                setHousehold(prev => ({ ...(prev || {}), processCaseId: json.caseId }));
+              } catch (e) {
+                // fallback: set simple object
+                setHousehold({ processCaseId: json.caseId });
+              }
+            }
+            setUploadMessage('Case submitted: ' + (json.caseId || 'queued'));
+          } catch (e) {
+            setUploadMessage('Case submitted');
+          }
+        } else {
+          setUploadMessage('Failed to submit case: ' + text);
+        }
+      } catch (err) {
+        console.error('processCase error', err);
+        setUploadMessage('Error submitting case to DSS');
+      }
+    }
     navigate('/additional-questions');
   };
+
+  // removed client-side merge: server now returns mergedHousehold
 
   return (
     <>

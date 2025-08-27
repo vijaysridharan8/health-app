@@ -3,15 +3,26 @@ package com.healthapp.backend;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
 import org.json.JSONObject;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.StringReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -256,6 +267,252 @@ public class DocumentController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error calling LLM: " + e.getMessage());
         }
         return ResponseEntity.ok(new JSONObject().put("answer", llmResponse).toString());
+    }
+
+    // Endpoint to process a case when user consents to share with Department of Social Services
+    @PostMapping(value = "/processCase", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> processCase(@RequestBody Map<String, Object> body, @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
+        try {
+            logger.info("/processCase called for sessionId={}", sessionId);
+            // Expect a consent flag in the payload: either "consentDSS":"yes" or boolean true under key "consentDSS"
+            Object consentObj = body.get("consentDSS");
+            boolean consent = false;
+            if (consentObj instanceof Boolean) consent = (Boolean) consentObj;
+            else if (consentObj instanceof String) consent = "yes".equalsIgnoreCase(((String) consentObj).trim());
+
+            if (!consent) {
+                logger.warn("processCase called without consent; payload={}", body);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new JSONObject().put("error", "consent required").toString());
+            }
+
+            // Generate a case id and (for now) log the full payload. Replace with real processing as needed.
+            String caseId = UUID.randomUUID().toString();
+            logger.info("Processing case {} payload: {}", caseId, body.toString());
+
+            // Attempt to read a processCase template stored in src/assets/processCase.txt (may contain XML)
+            String templateContent = null;
+            try {
+                // Resolve path relative to backend module directory
+                Path p = Paths.get("src", "assets", "processCase1.txt");
+                if (Files.exists(p)) {
+                    byte[] bytes = Files.readAllBytes(p);
+                    templateContent = new String(bytes, StandardCharsets.UTF_8);
+                } else {
+                    // Try repository-root relative path (in case working dir differs)
+                    Path p2 = Paths.get("..", "src", "assets", "processCase1.txt");
+                    if (Files.exists(p2)) {
+                        templateContent = new String(Files.readAllBytes(p2), StandardCharsets.UTF_8);
+                    }
+                }
+            } catch (Exception ioe) {
+                logger.warn("Could not read processCase template: {}", ioe.getMessage());
+                templateContent = null;
+            }
+
+            // Return a JSON response indicating the case was queued/processed and include template if found
+            JSONObject resp = new JSONObject();
+            resp.put("caseId", caseId);
+            resp.put("status", "queued");
+            resp.put("sessionId", sessionId == null ? JSONObject.NULL : sessionId);
+            System.out.println("processCase template content: " + templateContent);
+            if (templateContent != null) {
+                resp.put("processCaseTemplate", templateContent);
+
+                // Parse XML and extract caseIndividualDetail -> individualDetail fields
+                try {
+                    DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+                    dbFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                    DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+                    InputSource isrc = new InputSource(new StringReader(templateContent));
+                    org.w3c.dom.Document xmlDoc = dBuilder.parse(isrc);
+                    xmlDoc.getDocumentElement().normalize();
+
+                    NodeList caseIndList = xmlDoc.getElementsByTagName("caseIndividualDetail");
+                    JSONObject primaryObj = null;
+                    org.json.JSONArray dependents = new org.json.JSONArray();
+                    for (int i = 0; i < caseIndList.getLength(); i++) {
+                        org.w3c.dom.Node caseNode = caseIndList.item(i);
+                        if (caseNode.getNodeType() != org.w3c.dom.Node.ELEMENT_NODE) continue;
+                        org.w3c.dom.Element caseElem = (org.w3c.dom.Element) caseNode;
+                        NodeList indivList = caseElem.getElementsByTagName("individualDetail");
+                        if (indivList.getLength() == 0) continue;
+                        org.w3c.dom.Element indivElem = (org.w3c.dom.Element) indivList.item(0);
+
+                        String firstName = getTagValue(indivElem, "firstName");
+                        String lastName = getTagValue(indivElem, "lastName");
+                        String gender = getTagValue(indivElem, "genderCode");
+                        String dob = getTagValue(indivElem, "DOB");
+                        String ssn = getTagValue(indivElem, "SSN");
+                        String primaryStatus = getTagValue(indivElem, "primaryStatusInd");
+                        boolean isPrimary = "true".equalsIgnoreCase(primaryStatus) || "yes".equalsIgnoreCase(primaryStatus) || "1".equals(primaryStatus);
+
+                        JSONObject ind = new JSONObject();
+                        ind.put("firstName", firstName == null ? "" : firstName);
+                        ind.put("lastName", lastName == null ? "" : lastName);
+                        ind.put("genderCode", gender == null ? "" : gender);
+                        ind.put("DOB", dob == null ? "" : dob);
+                        ind.put("SSN", ssn == null ? "" : ssn);
+                        if (isPrimary && primaryObj == null) {
+                            primaryObj = ind;
+                        } else {
+                            dependents.put(ind);
+                        }
+                    }
+                    if (primaryObj != null) resp.put("primary", primaryObj);
+                    if (dependents.length() > 0) resp.put("dependents", dependents);
+
+                    // If caller provided a household in the request body, merge parsed individuals into it
+                    try {
+                        Object hhObj = body.get("household");
+                        JSONObject incomingHH = null;
+                        if (hhObj instanceof Map) {
+                            incomingHH = new JSONObject((Map<?,?>) hhObj);
+                        } else if (hhObj instanceof String) {
+                            try {
+                                incomingHH = new JSONObject((String) hhObj);
+                            } catch (Exception se) {
+                                // ignore parse error and leave incomingHH null
+                            }
+                        }
+                        if (incomingHH != null) {
+
+                            // Ensure dependents array exists in incoming household
+                            org.json.JSONArray incomingDependents = incomingHH.has("dependents") && incomingHH.get("dependents") instanceof org.json.JSONArray
+                                    ? incomingHH.getJSONArray("dependents")
+                                    : (incomingHH.has("dependents") ? new org.json.JSONArray(incomingHH.get("dependents")) : new org.json.JSONArray());
+
+                            // Helper to find and merge by SSN in primary, spouse, dependents
+                            java.util.function.BiConsumer<JSONObject, JSONObject> mergePerson = (target, src) -> {
+                                if (target == null || src == null) return;
+                                if (src.has("firstName")) target.put("firstName", src.optString("firstName", target.optString("firstName", "")));
+                                if (src.has("lastName")) target.put("lastName", src.optString("lastName", target.optString("lastName", "")));
+                                if (src.has("DOB")) target.put("dob", src.optString("DOB", target.optString("dob", "")));
+                                if (src.has("genderCode")) target.put("gender", src.optString("genderCode", target.optString("gender", "")));
+                                if (src.has("SSN")) target.put("ssn", src.optString("SSN", target.optString("ssn", "")));
+                            };
+
+                            // Helper to search dependents array by SSN
+                            java.util.function.Function<String, Integer> findDependentIndex = (ssn) -> {
+                                if (ssn == null || ssn.isEmpty()) return -1;
+                                for (int di = 0; di < incomingDependents.length(); di++) {
+                                    org.json.JSONObject d = incomingDependents.getJSONObject(di);
+                                    String dssn = d.optString("ssn", "");
+                                    if (dssn != null && !dssn.isEmpty() && dssn.equals(ssn)) return di;
+                                }
+                                return -1;
+                            };
+
+                            // Merge primary if present
+                            if (primaryObj != null) {
+                                String pSSN = primaryObj.optString("SSN", "").trim();
+                                boolean mergedPrimary = false;
+                                if (incomingHH.has("primary") && !incomingHH.isNull("primary")) {
+                                    org.json.JSONObject inPrimary = incomingHH.getJSONObject("primary");
+                                    String inPssn = inPrimary.optString("ssn", "");
+                                    if (pSSN.length() > 0 && pSSN.equals(inPssn)) {
+                                        mergePerson.accept(inPrimary, primaryObj);
+                                        mergedPrimary = true;
+                                    }
+                                }
+                                if (!mergedPrimary) {
+                                    // If incoming has no primary or primary is empty, set it
+                                    boolean hasPrimary = incomingHH.has("primary") && !incomingHH.isNull("primary") && (
+                                            (incomingHH.getJSONObject("primary").optString("firstName", "").length() > 0) ||
+                                                    (incomingHH.getJSONObject("primary").optString("ssn", "").length() > 0)
+                                    );
+                                    if (!hasPrimary) {
+                                        // normalize keys
+                                        org.json.JSONObject newPrimary = new org.json.JSONObject();
+                                        newPrimary.put("firstName", primaryObj.optString("firstName", ""));
+                                        newPrimary.put("lastName", primaryObj.optString("lastName", ""));
+                                        newPrimary.put("dob", primaryObj.optString("DOB", ""));
+                                        newPrimary.put("gender", primaryObj.optString("genderCode", ""));
+                                        newPrimary.put("ssn", primaryObj.optString("SSN", ""));
+                                        incomingHH.put("primary", newPrimary);
+                                    } else {
+                                        // add as dependent
+                                        org.json.JSONObject dep = new org.json.JSONObject();
+                                        dep.put("id", UUID.randomUUID().toString());
+                                        dep.put("firstName", primaryObj.optString("firstName", ""));
+                                        dep.put("lastName", primaryObj.optString("lastName", ""));
+                                        dep.put("dob", primaryObj.optString("DOB", ""));
+                                        dep.put("gender", primaryObj.optString("genderCode", ""));
+                                        dep.put("ssn", primaryObj.optString("SSN", ""));
+                                        incomingDependents.put(dep);
+                                    }
+                                }
+                            }
+
+                            // Merge dependents
+                            for (int di = 0; di < dependents.length(); di++) {
+                                org.json.JSONObject parsedDep = dependents.getJSONObject(di);
+                                String dSSN = parsedDep.optString("SSN", "").trim();
+                                boolean merged = false;
+                                if (dSSN.length() > 0) {
+                                    // match primary
+                                    if (incomingHH.has("primary") && !incomingHH.isNull("primary")) {
+                                        org.json.JSONObject inPrimary = incomingHH.getJSONObject("primary");
+                                        if (dSSN.equals(inPrimary.optString("ssn", "").trim())) {
+                                            mergePerson.accept(inPrimary, parsedDep);
+                                            merged = true;
+                                        }
+                                    }
+                                    // match spouse
+                                    if (!merged && incomingHH.has("spouse") && !incomingHH.isNull("spouse")) {
+                                        org.json.JSONObject inSpouse = incomingHH.getJSONObject("spouse");
+                                        if (dSSN.equals(inSpouse.optString("ssn", "").trim())) {
+                                            mergePerson.accept(inSpouse, parsedDep);
+                                            merged = true;
+                                        }
+                                    }
+                                    // match dependents
+                                    if (!merged) {
+                                        int idx = findDependentIndex.apply(dSSN);
+                                        if (idx != -1) {
+                                            org.json.JSONObject target = incomingDependents.getJSONObject(idx);
+                                            mergePerson.accept(target, parsedDep);
+                                            merged = true;
+                                        }
+                                    }
+                                }
+                                if (!merged) {
+                                    org.json.JSONObject newDep = new org.json.JSONObject();
+                                    newDep.put("id", UUID.randomUUID().toString());
+                                    newDep.put("firstName", parsedDep.optString("firstName", ""));
+                                    newDep.put("lastName", parsedDep.optString("lastName", ""));
+                                    newDep.put("dob", parsedDep.optString("DOB", ""));
+                                    newDep.put("gender", parsedDep.optString("genderCode", ""));
+                                    newDep.put("ssn", parsedDep.optString("SSN", ""));
+                                    incomingDependents.put(newDep);
+                                }
+                            }
+
+                            // attach dependents array back to incomingHH
+                            incomingHH.put("dependents", incomingDependents);
+                            resp.put("mergedHousehold", incomingHH);
+                        }
+                    } catch (Exception mergeEx) {
+                        logger.warn("Failed to merge parsed individuals into incoming household: {}", mergeEx.getMessage());
+                    }
+                } catch (Exception parseEx) {
+                    logger.warn("Failed to parse processCase template XML: {}", parseEx.getMessage());
+                }
+            }
+            return ResponseEntity.ok(resp.toString());
+        } catch (Exception ex) {
+            logger.error("Error in processCase: {}", ex.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new JSONObject().put("error", ex.getMessage()).toString());
+        }
+        
+    }
+
+    // Helper to safely get child element text
+    private static String getTagValue(org.w3c.dom.Element parent, String tagName) {
+        NodeList nl = parent.getElementsByTagName(tagName);
+        if (nl == null || nl.getLength() == 0) return null;
+        org.w3c.dom.Node n = nl.item(0);
+        if (n == null) return null;
+        return n.getTextContent();
     }
 
 }
