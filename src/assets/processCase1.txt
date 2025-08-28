@@ -60,7 +60,7 @@
 					</individualRelationship>
 					<livingArrangementDetail>
 						<laType>HO</laType>
-						<incarceratedYN>N</incarceratedYN>
+						<incarceratedYN>Y</incarceratedYN>
 					</livingArrangementDetail>
 					<demographicsDetail>
 						<identityCode>UN</identityCode>
