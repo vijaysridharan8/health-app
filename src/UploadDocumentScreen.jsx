@@ -81,6 +81,21 @@ export default function UploadDocumentScreen() {
               }
             }
 
+            // Build a concatenated address string from common LLM keys
+            const addrLine1 = getField(fields, 'Address', 'Address Line 1', 'address', 'addressLine1') || '';
+            const addrLine2 = getField(fields, 'Address Line 2', 'addressLine2', 'line2') || '';
+            const city = getField(fields, 'City', 'city') || '';
+            const state = getField(fields, 'State', 'state') || '';
+            const zip = getField(fields, 'Zip', 'zip', 'postalCode', 'postal_code') || '';
+            let addressStr = '';
+            if (addrLine1) addressStr += addrLine1;
+            if (addrLine2) addressStr += (addressStr ? ', ' : '') + addrLine2;
+            let cityStateZip = '';
+            if (city) cityStateZip += city;
+            if (state) cityStateZip += (cityStateZip ? ', ' : '') + state;
+            if (zip) cityStateZip += (cityStateZip ? ' ' : '') + zip;
+            if (cityStateZip) addressStr += (addressStr ? ', ' : '') + cityStateZip;
+
             // Set household context (normalize common key variants for DOB and SSN)
             setHousehold({
               primary: {
@@ -110,7 +125,7 @@ export default function UploadDocumentScreen() {
                 citizen: getField(dep, 'US Citizen or Naturalized Citizen') || '',
                 applyForCoverage: getField(dep, 'Applying for Coverage') === 'Yes'
               })) : [],
-              address: getField(fields, 'Address', 'Address Line 1', 'address', 'addressLine1') || '',
+              address: addressStr || '',
               phone: getField(fields, 'Phone', 'Phone Number', 'phone', 'phoneNumber') || '',
               altPhone: getField(fields, 'Alternate Phone Number', 'Alt Phone', 'alternatePhone') || '',
               tax: taxItems,

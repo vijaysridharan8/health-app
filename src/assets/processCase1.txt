@@ -156,8 +156,8 @@
 				<individualDetail>
 					<indvId>8900547246</indvId>
 					<headOfHouseholdInd>true</headOfHouseholdInd>
-					<firstName>Shaun</firstName>
-					<lastName>Murphy</lastName>
+					<firstName>Krishna</firstName>
+					<lastName>Vasu</lastName>
 					<genderCode>F</genderCode>
 					<dob>1980-01-01</dob>
 					<raceCode>999</raceCode>
@@ -168,7 +168,7 @@
 					<paperlessInd>false</paperlessInd>
 					<needsCoverageInd>true</needsCoverageInd>
 					<ssnDetail>
-						<ssn>846453787</ssn>
+						<ssn>123451111</ssn>
 					</ssnDetail>
 					<householdStatusDetail>
 						<hhStatus>Y</hhStatus>

@@ -29,6 +29,38 @@ export default function ReviewAndSign() {
     }
   };
 
+  // Format address for display. Accepts either a string `household.address` or an object with addressLine1/2, city, state, zip
+  const formatAddress = (hh) => {
+    try {
+      if (!hh) return '';
+      const raw = hh.address;
+      // If address is a plain string, return it
+      if (raw && typeof raw === 'string' && raw.trim().length > 0) return raw;
+
+      // Address may be an object either at household.address or top-level keys
+      const a = (raw && typeof raw === 'object') ? raw : {};
+      const line1 = (a.addressLine1 || a.line1 || a.address1 || hh.addressLine1 || '').toString().trim();
+      const line2 = (a.addressLine2 || a.line2 || a.address2 || hh.addressLine2 || '').toString().trim();
+      const city = (a.city || hh.city || '').toString().trim();
+      const state = (a.state || hh.state || '').toString().trim();
+      const zip = (a.zip || a.postalCode || hh.zip || hh.postalCode || '').toString().trim();
+
+      const parts = [];
+      if (line1) parts.push(line1);
+      if (line2) parts.push(line2);
+      let cityLine = '';
+      if (city) cityLine += city;
+      if (state) cityLine += (cityLine ? ', ' : '') + state;
+      if (zip) cityLine += (cityLine ? ' ' : '') + zip;
+      if (cityLine) parts.push(cityLine);
+
+      if (parts.length === 0) return '';
+      return parts.map((p, i) => <div key={i}>{p}</div>);
+    } catch (e) {
+      return '';
+    }
+  };
+
   // Assumed shapes (if backend provides):
   // household.tax => [{ name, taxStatus, reconciledPremiumTaxCredits }]
   // household.income => [{ ownerName, amount, frequency, companyType }]
@@ -149,7 +181,7 @@ export default function ReviewAndSign() {
                   <tbody>
                     <tr style={{background: '#fff', fontSize: '0.9rem'}}>
                       <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '16.66%', background: '#fff', fontWeight: 700}}>Address</th>
-                      <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '33.32%', background: '#fff', fontWeight: 'normal'}}>{household?.address || '315 Trumbull St, Hartford, CT 06103'}</th>
+                      <th style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', textAlign: 'left', width: '33.32%', background: '#fff', fontWeight: 'normal'}}>{formatAddress(household) || '315 Trumbull St, Hartford, CT 06103'}</th>
                     </tr>
                     <tr style={{background: '#fff', fontSize: '0.9rem'}}>
                       <td colSpan="2" style={{padding: '10px 8px', borderBottom: '1.5px solid #e3e8f0', background: '#fff', fontWeight: 700}}>
